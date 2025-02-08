@@ -5,11 +5,16 @@ import (
 	"time"
 )
 
+// Represents a pair of id and name.
 type IdNamePair struct {
 	Id   int64
 	Name string
 }
+
+// Represents a map of name to id.
 type NameIdMap map[string]int64
+
+// Represents a map of id to name.
 type IdNameMap map[int64]string
 
 // Represents an event to be published with the state serialized.
@@ -22,6 +27,7 @@ type SerializedEvent struct {
 	EventTime   time.Time
 }
 
+// Decodes the event state into the specified type.
 func DecodeEventStateTo[U any](e SerializedEvent, state *U) error {
 	err := json.Unmarshal([]byte(e.State), state)
 	if err != nil {

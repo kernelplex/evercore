@@ -24,6 +24,7 @@ type MemoryStorageEngine struct {
 	AggregateInv       map[int64]*string
 }
 
+// NewMemoryStorageEngine creates a new in-memory storage engine.
 func NewMemoryStorageEngine() *MemoryStorageEngine {
 	return &MemoryStorageEngine{
 		CapturedEvents:    make([]StorageEngineEvent, 0),
@@ -38,6 +39,7 @@ func NewMemoryStorageEngine() *MemoryStorageEngine {
 	}
 }
 
+// MemoryStorageEngineTransaction is a transaction for the in-memory storage engine.
 type MemoryStorageEngineTransaction struct {
 }
 

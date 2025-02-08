@@ -8,6 +8,7 @@ import (
 // Used internally to compare time passed in with zerotime.
 var zeroTime time.Time
 
+// EventStore is the main entry point for interacting with the event store.
 type EventStore struct {
 	storageEngine       StorageEngine
 	eventTypeLookup     map[string]int64
@@ -182,6 +183,7 @@ func (store *EventStore) Warmup(ctx context.Context) error {
 	}
 	return nil
 }
+
 func (store *EventStore) newAggregate(stx *EventStoreContextType, aggregateType string) (int64, error) {
 	aggregateTypeId, err := store.getAggregateTypeId(aggregateType)
 	if err != nil {

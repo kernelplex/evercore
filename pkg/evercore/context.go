@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-// "fmt"
-
+// Represents the state of the aggregate including the latest snapshot (if it
+// exists) and the events required to reconstitute its current state.
 type AggregateState struct {
 	AggregateId int64
 	NaturalKey  *string
@@ -14,6 +14,7 @@ type AggregateState struct {
 	Events      EventSlice
 }
 
+// EventState represents the state of an event.
 type EventState interface {
 	GetEventType() string
 	Serialize() string
@@ -25,6 +26,7 @@ type StorageEngineTxInfo interface {
 	Rollback() error
 }
 
+// Represents a readonly context access to the event store.
 type EventStoreReadonlyContext interface {
 	LoadStateInto(aggregate Aggregate, id int64) error
 	LoadStateByKeyInto(aggregate Aggregate, naturalKey string) error
@@ -33,6 +35,7 @@ type EventStoreReadonlyContext interface {
 	LoadAggregateStateByKey(aggregateType string, naturalKey string) (*AggregateState, error)
 }
 
+// Represents a read/write context access to the event store.
 type EventStoreContext interface {
 	EventStoreReadonlyContext
 	NewAggregateId(aggregateType string) (int64, error)
@@ -46,6 +49,7 @@ type EventStoreContext interface {
 	SaveSnapshot(snapshot Snapshot)
 }
 
+// Tracks information related to the current event store context.
 type EventStoreContextType struct {
 	capturedEvents EventSlice
 	snapshots      SnapshotSlice
@@ -80,10 +84,12 @@ func (ctx *EventStoreContextType) Publish(event *SerializedEvent) {
 	ctx.capturedEvents = append(ctx.capturedEvents, *event)
 }
 
+// Adds a new aggregate stream and returns the resulting id.
 func (ctx EventStoreContextType) NewAggregateId(aggregateType string) (int64, error) {
 	return ctx.store.newAggregate(&ctx, aggregateType)
 }
 
+// Adds a new aggregate stream with the specified natural key and returns the resulting id.
 func (ctx EventStoreContextType) NewAggregateIdWithKey(aggregateType string, naturalKey string) (int64, error) {
 	return ctx.store.newAggregateWithKey(&ctx, aggregateType, naturalKey)
 }
@@ -98,6 +104,7 @@ func (ctx *EventStoreContextType) LoadAggregateState(aggregateType string, aggre
 	return ctx.loadState(aggregateId, key)
 }
 
+// Loads the aggregate state using the natural key.
 func (ctx *EventStoreContextType) LoadAggregateStateByKey(aggregateType string, naturalKey string) (*AggregateState, error) {
 	aggregateId, err := ctx.store.getAggregateIdByKey(ctx, aggregateType, naturalKey)
 	if err != nil {
@@ -138,6 +145,7 @@ func (etx *EventStoreContextType) SaveSnapshot(snapshot Snapshot) {
 	etx.snapshots = append(etx.snapshots, snapshot)
 }
 
+// Loads the state of an aggregate into the aggregate.
 func (etx *EventStoreContextType) LoadStateInto(agg Aggregate, aggregateId int64) error {
 	aggregateType := agg.GetAggregateType()
 
@@ -151,6 +159,8 @@ func (etx *EventStoreContextType) LoadStateInto(agg Aggregate, aggregateId int64
 	}
 	return nil
 }
+
+// Loads the state of an aggregate into the aggregate using the natural key.
 func (etx *EventStoreContextType) LoadStateByKeyInto(agg Aggregate, naturalKey string) error {
 	aggregateType := agg.GetAggregateType()
 
@@ -166,6 +176,7 @@ func (etx *EventStoreContextType) LoadStateByKeyInto(agg Aggregate, naturalKey s
 	return nil
 }
 
+// Creates a new aggregate of the specified type.
 func (etx *EventStoreContextType) CreateAggregateInto(agg Aggregate) error {
 	aggregateType := agg.GetAggregateType()
 	id, err := etx.NewAggregateId(aggregateType)
@@ -176,6 +187,7 @@ func (etx *EventStoreContextType) CreateAggregateInto(agg Aggregate) error {
 	return nil
 }
 
+// Creates a new aggregate of the specified type with the specified natural key.
 func (etx *EventStoreContextType) CreateAggregateWithKeyInto(agg Aggregate, naturalKey string) error {
 	aggregateType := agg.GetAggregateType()
 	id, err := etx.NewAggregateIdWithKey(aggregateType, naturalKey)
@@ -212,6 +224,7 @@ func applyState(state *AggregateState, agg Aggregate) error {
 	return nil
 }
 
+// Applies an event to the aggregate.
 func (etx *EventStoreContextType) ApplyEventTo(agg Aggregate, eventState EventState, time time.Time, reference string) error {
 	err := agg.ApplyEventState(eventState, time, reference)
 	if err != nil {
