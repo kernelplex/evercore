@@ -12,8 +12,8 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
-	"github.com/kernelplex/evercore/pkg/evercoreenginetests"
-	"github.com/kernelplex/evercore/pkg/evercorepostgres"
+	"github.com/kernelplex/evercore/enginetests"
+	"github.com/kernelplex/evercore/evercorepostgres"
 	"github.com/pressly/goose/v3"
 )
 

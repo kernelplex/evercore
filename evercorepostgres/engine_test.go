@@ -3,8 +3,8 @@ package evercorepostgres_test
 import (
 	"testing"
 
-	"github.com/kernelplex/evercore/pkg/evercore"
-	"github.com/kernelplex/evercore/pkg/evercorepostgres"
+	"github.com/kernelplex/evercore/base"
+	"github.com/kernelplex/evercore/evercorepostgres"
 )
 
 // Ensure the PostgresStorageEngine implements StorageEngine

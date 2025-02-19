@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/kernelplex/evercore/pkg/evercore"
+	"github.com/kernelplex/evercore/base"
 )
 
 const maxKeyLength = 64

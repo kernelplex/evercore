@@ -4,11 +4,11 @@ test:
 
 .PHONY: integration-test-sqlite 
 integration-test-sqlite:
-	go test -count=1 -tags=integration ./pkg/evercoresqlite
+	go test -count=1 -tags=integration ./evercoresqlite
 
 .PHONY: integration-test-postgres 
 integration-test-postgres:
-	go test -count=1 -tags=integration ./pkg/evercorepostgres
+	go test -count=1 -tags=integration ./evercorepostgres
 
 .PHONY: integration-test
 integration-test: integration-test-sqlite integration-test-postgres

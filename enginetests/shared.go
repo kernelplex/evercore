@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kernelplex/evercore/pkg/evercore"
+	"github.com/kernelplex/evercore/base"
 )
 
 type StorageEngineTestSuite struct {

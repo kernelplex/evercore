@@ -1,11 +1,13 @@
+//go:build integration
+
 package evercoresqlite_test
 
 import (
 	"database/sql"
 	"testing"
 
-	"github.com/kernelplex/evercore/pkg/evercoreenginetests"
-	"github.com/kernelplex/evercore/pkg/evercoresqlite"
+	"github.com/kernelplex/evercore/enginetests"
+	"github.com/kernelplex/evercore/evercoresqlite"
 	_ "github.com/mattn/go-sqlite3"
 )
 

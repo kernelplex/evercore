@@ -4,8 +4,8 @@ package evercoresqlite_test
 import (
 	"testing"
 
-	"github.com/kernelplex/evercore/pkg/evercore"
-	"github.com/kernelplex/evercore/pkg/evercoresqlite"
+	"github.com/kernelplex/evercore/base"
+	"github.com/kernelplex/evercore/evercoresqlite"
 )
 
 // Ensure the SqliteStorageEngine implements StorageEngine
