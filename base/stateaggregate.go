@@ -9,9 +9,10 @@ import (
 
 // StateAggregate can be used for aggregates that contain simple state.
 type StateAggregate[T any] struct {
-	Id       int64
-	State    T
-	Sequence int64
+	Id            int64
+	State         T
+	Sequence      int64
+	aggregateType string
 }
 
 // EventDecoder is a function that decodes an event into an EventState.
@@ -47,8 +48,12 @@ func (t *StateAggregate[T]) SetSequence(seq int64) {
 
 // GetAggregateType gets the aggregate type
 func (t *StateAggregate[T]) GetAggregateType() string {
-	stateType := reflect.TypeOf(*t)
-	return stateType.Name()
+	// Check if aggregateType is empty
+	if t.aggregateType == "" {
+		stateType := reflect.TypeOf(t.State)
+		t.aggregateType = stateType.Name()
+	}
+	return t.aggregateType
 }
 
 // GetSnapshotFrequency gets the snapshot frequency
@@ -58,7 +63,14 @@ func (t *StateAggregate[T]) GetSnapshotFrequency() int64 {
 
 // ApplyEventState applies an event state to the aggregate
 func (t *StateAggregate[T]) ApplyEventState(eventState EventState, eventTime time.Time, reference string) error {
-	return CopyFields(eventState, &t.State)
+	var stateValue any
+	value, ok := eventState.(iStateEvent)
+	if ok {
+		stateValue = value.GetState()
+	} else {
+		stateValue = eventState
+	}
+	return CopyFields(stateValue, &t.State)
 }
 
 // GetSnapshotState gets the snapshot state
@@ -139,5 +151,8 @@ func CopyFields(e, t interface{}) error {
 }
 
 func (t *StateAggregate[T]) DecodeEvent(ev SerializedEvent) (EventState, error) {
+	if eventDecoder == nil {
+		panic("EventDecoder not set")
+	}
 	return eventDecoder(t.GetAggregateType(), ev)
 }
