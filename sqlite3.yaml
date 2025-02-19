@@ -1,0 +1,10 @@
+version: "2"
+sql:
+  - schema: "evercoresqlite/sql/migrations/"
+    queries: "evercoresqlite/sql/queries.sql"
+    engine: "sqlite"
+    gen: 
+      go:
+        package: "evercoresqlite"
+        out: "evercoresqlite"
+

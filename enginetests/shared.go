@@ -107,13 +107,15 @@ func (s *StorageEngineTestSuite) TODO(t *testing.T) {
 func (s *StorageEngineTestSuite) canGetNewAggregateType(t *testing.T) {
 	ctx := context.Background()
 	var err error
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Commit()
 
-	userAggregateTypeId, err = s.iut.GetAggregateTypeId(ctx, userAggregateType)
+	userAggregateTypeId, err = s.iut.GetAggregateTypeId(tx, ctx, userAggregateType)
 	if err != nil {
 		t.Errorf("Failed to get aggregate type: %v", err)
 	}
 
-	profileAggregateTypeId, err = s.iut.GetAggregateTypeId(ctx, profileAggregateType)
+	profileAggregateTypeId, err = s.iut.GetAggregateTypeId(tx, ctx, profileAggregateType)
 	if err != nil {
 		t.Errorf("Failed to get aggregate type: %v", err)
 	}
@@ -124,8 +126,10 @@ func (s *StorageEngineTestSuite) canGetNewAggregateType(t *testing.T) {
 
 func (s *StorageEngineTestSuite) canGetExistingAggregateType(t *testing.T) {
 	ctx := context.Background()
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
 
-	retrievedUserAggregateId, err := s.iut.GetAggregateTypeId(ctx, userAggregateType)
+	retrievedUserAggregateId, err := s.iut.GetAggregateTypeId(tx, ctx, userAggregateType)
 	if err != nil {
 		t.Errorf("Failed to get aggregate type: %v", err)
 	}
@@ -137,7 +141,10 @@ func (s *StorageEngineTestSuite) canGetExistingAggregateType(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getAllAggregateTypes(t *testing.T) {
 	ctx := context.Background()
-	retrievedAggregateTypes, err := s.iut.GetAggregateTypes(ctx)
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	retrievedAggregateTypes, err := s.iut.GetAggregateTypes(tx, ctx)
 	if err != nil {
 		t.Errorf("Failed to get all aggregate types: %v", err)
 	}
@@ -157,23 +164,25 @@ func (s *StorageEngineTestSuite) getAllAggregateTypes(t *testing.T) {
 func (s *StorageEngineTestSuite) canGetNewEventType(t *testing.T) {
 	ctx := context.Background()
 	var err error
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Commit()
 
-	userCreatedEventId, err = s.iut.GetEventTypeId(ctx, userCreatedEvent)
+	userCreatedEventId, err = s.iut.GetEventTypeId(tx, ctx, userCreatedEvent)
 	if err != nil {
 		t.Errorf("Failed to get event type id for '%s': %v", userCreatedEvent, err)
 	}
 
-	userUpdatedEventId, err = s.iut.GetEventTypeId(ctx, userUpdatedEvent)
+	userUpdatedEventId, err = s.iut.GetEventTypeId(tx, ctx, userUpdatedEvent)
 	if err != nil {
 		t.Errorf("Failed to get event type id for '%s': %v", userUpdatedEvent, err)
 	}
 
-	profileCreatedEventId, err = s.iut.GetEventTypeId(ctx, profileCreatedEvent)
+	profileCreatedEventId, err = s.iut.GetEventTypeId(tx, ctx, profileCreatedEvent)
 	if err != nil {
 		t.Errorf("Failed to get event type id for '%s': %v", profileCreatedEvent, err)
 	}
 
-	profileUpdatedEventId, err = s.iut.GetEventTypeId(ctx, profileUpdatedEvent)
+	profileUpdatedEventId, err = s.iut.GetEventTypeId(tx, ctx, profileUpdatedEvent)
 	if err != nil {
 		t.Errorf("Failed to get event type id for '%s': %v", profileUpdatedEvent, err)
 	}
@@ -189,8 +198,10 @@ func (s *StorageEngineTestSuite) canGetNewEventType(t *testing.T) {
 
 func (s *StorageEngineTestSuite) canGetExistingEventType(t *testing.T) {
 	ctx := context.Background()
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
 
-	retrievedEventId, err := s.iut.GetEventTypeId(ctx, profileCreatedEvent)
+	retrievedEventId, err := s.iut.GetEventTypeId(tx, ctx, profileCreatedEvent)
 	if err != nil {
 		t.Errorf("Failed to get event type id for '%s': %v", profileCreatedEvent, err)
 	}
@@ -203,8 +214,10 @@ func (s *StorageEngineTestSuite) canGetExistingEventType(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getAllEventTypes(t *testing.T) {
 	ctx := context.Background()
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
 
-	retrievedEvents, err := s.iut.GetEventTypes(ctx)
+	retrievedEvents, err := s.iut.GetEventTypes(tx, ctx)
 	if err != nil {
 		t.Errorf("Failed to get event types: %v", err)
 	}
@@ -242,8 +255,10 @@ func (s *StorageEngineTestSuite) createNewAggregate(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getAggregate(t *testing.T) {
 	ctx := context.Background()
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
 
-	id, key, err := s.iut.GetAggregateById(ctx, userAggregateTypeId, s.aggregateNoKey)
+	id, key, err := s.iut.GetAggregateById(tx, ctx, userAggregateTypeId, s.aggregateNoKey)
 	if err != nil {
 		t.Errorf("Failed to get aggregate by id %d: %v", s.aggregateNoKey, err)
 	}
@@ -260,8 +275,10 @@ func (s *StorageEngineTestSuite) getAggregate(t *testing.T) {
 func (s *StorageEngineTestSuite) getAggregateMissingId(t *testing.T) {
 	ctx := context.Background()
 	const missingId int64 = 99999999
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
 
-	id, key, err := s.iut.GetAggregateById(ctx, userAggregateTypeId, missingId)
+	id, key, err := s.iut.GetAggregateById(tx, ctx, userAggregateTypeId, missingId)
 
 	if err == nil {
 		t.Error("Retrieving aggregate missing an id should an error")
@@ -278,7 +295,10 @@ func (s *StorageEngineTestSuite) getAggregateMissingId(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getAggregateIncorrectType(t *testing.T) {
 	ctx := context.Background()
-	id, key, err := s.iut.GetAggregateById(ctx, profileAggregateTypeId, s.aggregateNoKey)
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	id, key, err := s.iut.GetAggregateById(tx, ctx, profileAggregateTypeId, s.aggregateNoKey)
 
 	if err == nil {
 		t.Error("Retrieving aggregate with incorrect aggregate type should an error")
@@ -389,7 +409,10 @@ func (s *StorageEngineTestSuite) createAggregateExceedingMaximumKeyLength(t *tes
 
 func (s *StorageEngineTestSuite) getKeyedAggregateById(t *testing.T) {
 	ctx := context.Background()
-	id, key, err := s.iut.GetAggregateById(ctx, userAggregateTypeId, s.aggregateWithKey)
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	id, key, err := s.iut.GetAggregateById(tx, ctx, userAggregateTypeId, s.aggregateWithKey)
 	if err != nil {
 		t.Errorf("Failed to get aggregate by id %d: %v", s.aggregateWithKey, err)
 	}
@@ -405,7 +428,10 @@ func (s *StorageEngineTestSuite) getKeyedAggregateById(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getKeyedAggregateByKey(t *testing.T) {
 	ctx := context.Background()
-	id, err := s.iut.GetAggregateByKey(ctx, userAggregateTypeId, "chavez")
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	id, err := s.iut.GetAggregateByKey(tx, ctx, userAggregateTypeId, "chavez")
 	if err != nil {
 		t.Errorf("Failed to get aggregate by id %d: %v", s.aggregateWithKey, err)
 	}
@@ -416,7 +442,10 @@ func (s *StorageEngineTestSuite) getKeyedAggregateByKey(t *testing.T) {
 }
 func (s *StorageEngineTestSuite) getAggregateByMissingKey(t *testing.T) {
 	ctx := context.Background()
-	id, err := s.iut.GetAggregateByKey(ctx, userAggregateTypeId, "jjjkkkooo")
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	id, err := s.iut.GetAggregateByKey(tx, ctx, userAggregateTypeId, "jjjkkkooo")
 	if err == nil {
 		t.Errorf("Failed expedted error when retriving aggregate by missing key.")
 	}
@@ -428,7 +457,9 @@ func (s *StorageEngineTestSuite) getAggregateByMissingKey(t *testing.T) {
 }
 func (s *StorageEngineTestSuite) getKeyedAggregateWithWrongAggregateType(t *testing.T) {
 	ctx := context.Background()
-	id, err := s.iut.GetAggregateByKey(ctx, profileAggregateTypeId, "chavez")
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+	id, err := s.iut.GetAggregateByKey(tx, ctx, profileAggregateTypeId, "chavez")
 
 	if err == nil {
 		t.Error("Retrieving aggregate with incorrect aggregate type should an error")
@@ -507,7 +538,10 @@ func (s *StorageEngineTestSuite) writeState(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getExistingSnapshot(t *testing.T) {
 	ctx := context.Background()
-	snapshot, err := s.iut.GetSnapshotForAggregate(ctx, s.aggregateNoKey)
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	snapshot, err := s.iut.GetSnapshotForAggregate(tx, ctx, s.aggregateNoKey)
 	if err != nil {
 		t.Errorf("Failed to get snapshot for aggregate: %v", err)
 	}
@@ -522,7 +556,10 @@ func (s *StorageEngineTestSuite) getExistingSnapshot(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getMissingSnapshot(t *testing.T) {
 	ctx := context.Background()
-	snapshot, err := s.iut.GetSnapshotForAggregate(ctx, s.aggregateWithKey)
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	snapshot, err := s.iut.GetSnapshotForAggregate(tx, ctx, s.aggregateWithKey)
 	if err != nil {
 		t.Errorf("Failed to get snapshot for aggregate: %v", err)
 	}
@@ -534,7 +571,9 @@ func (s *StorageEngineTestSuite) getMissingSnapshot(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getEvents(t *testing.T) {
 	ctx := context.Background()
-	events, err := s.iut.GetEventsForAggregate(ctx, s.aggregateNoKey, 0)
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+	events, err := s.iut.GetEventsForAggregate(tx, ctx, s.aggregateNoKey, 0)
 	if err != nil {
 		t.Errorf("Failed to get events: %v", err)
 	}
@@ -548,7 +587,10 @@ func (s *StorageEngineTestSuite) getEvents(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getEventsAfterSequence(t *testing.T) {
 	ctx := context.Background()
-	events, err := s.iut.GetEventsForAggregate(ctx, s.aggregateNoKey, 1)
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	events, err := s.iut.GetEventsForAggregate(tx, ctx, s.aggregateNoKey, 1)
 	if err != nil {
 		t.Errorf("Failed to get events: %v", err)
 	}
@@ -564,7 +606,10 @@ func (s *StorageEngineTestSuite) getEventsAfterSequence(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getEventsAfterLastSequence(t *testing.T) {
 	ctx := context.Background()
-	events, err := s.iut.GetEventsForAggregate(ctx, s.aggregateNoKey, 2)
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	events, err := s.iut.GetEventsForAggregate(tx, ctx, s.aggregateNoKey, 2)
 	if err != nil {
 		t.Errorf("Failed to get events: %v", err)
 	}
@@ -576,7 +621,10 @@ func (s *StorageEngineTestSuite) getEventsAfterLastSequence(t *testing.T) {
 
 func (s *StorageEngineTestSuite) getEventsForAggregateWithNoEvents(t *testing.T) {
 	ctx := context.Background()
-	events, err := s.iut.GetEventsForAggregate(ctx, s.aggregateWithKey, 0)
+	tx, err := s.iut.GetTransactionInfo()
+	defer tx.Rollback()
+
+	events, err := s.iut.GetEventsForAggregate(tx, ctx, s.aggregateWithKey, 0)
 	if err != nil {
 		t.Errorf("Failed to get events: %v", err)
 	}

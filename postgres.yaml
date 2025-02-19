@@ -1,0 +1,10 @@
+version: "2"
+sql:
+  - schema: "evercorepostgres/sql/migrations/"
+    queries: "evercorepostgres/sql/queries.sql"
+    engine: "postgresql"
+    gen: 
+      go:
+        package: "evercorepostgres"
+        out: "evercorepostgres"
+

@@ -1,3 +1,13 @@
+.PHONY: sqlc-gen
+sqlc-gen:
+	go tool sqlc -f ./sqlite3.yaml generate
+	go tool sqlc -f ./postgres.yaml generate
+
+
+.PHONY: scratch
+scratch: 
+	go run scratch/main.go
+
 .PHONY: test
 test: 
 	go test -count=1 ./... 

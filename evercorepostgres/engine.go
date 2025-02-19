@@ -43,15 +43,9 @@ func (stor *PostgresStorageEngine) GetMaxKeyLength() int {
 	return maxKeyLength
 }
 
-func (s *PostgresStorageEngine) GetEventTypeId(ctx context.Context, name string) (int64, error) {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-
-	queries := New(s.db)
-	qtx := queries.WithTx(tx)
+func (s *PostgresStorageEngine) GetEventTypeId(tx evercore.StorageEngineTxInfo, ctx context.Context, name string) (int64, error) {
+	db := tx.(*sql.Tx)
+	qtx := New(db)
 	eventTypeId, err := qtx.GetEventTypeIdByName(ctx, name)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, err
@@ -72,16 +66,9 @@ func (s *PostgresStorageEngine) GetEventTypeId(ctx context.Context, name string)
 	return eventTypeId, nil
 }
 
-func (s *PostgresStorageEngine) GetAggregateTypeId(ctx context.Context, aggregateTypeName string) (int64, error) {
-
-	tx, err := s.db.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-
-	queries := New(s.db)
-	qtx := queries.WithTx(tx)
+func (s *PostgresStorageEngine) GetAggregateTypeId(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeName string) (int64, error) {
+	db := tx.(*sql.Tx)
+	qtx := New(db)
 	aggregateTypeId, err := qtx.GetAggregateTypeIdByName(ctx, aggregateTypeName)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return 0, err
@@ -125,8 +112,9 @@ func (s *PostgresStorageEngine) NewAggregateWithKey(tx evercore.StorageEngineTxI
 	return id, err
 }
 
-func (s *PostgresStorageEngine) GetAggregateById(ctx context.Context, aggregateTypeId int64, aggregateId int64) (int64, *string, error) {
-	queries := New(s.db)
+func (s *PostgresStorageEngine) GetAggregateById(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, aggregateId int64) (int64, *string, error) {
+	db := tx.(*sql.Tx)
+	queries := New(db)
 	params := GetAggregateByIdParams{
 		AggregateTypeID: aggregateTypeId,
 		AggregateID:     aggregateId,
@@ -145,8 +133,10 @@ func (s *PostgresStorageEngine) GetAggregateById(ctx context.Context, aggregateT
 	return result.ID, key, nil
 }
 
-func (s *PostgresStorageEngine) GetAggregateByKey(ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
-	queries := New(s.db)
+func (s *PostgresStorageEngine) GetAggregateByKey(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
+	db := tx.(*sql.Tx)
+
+	queries := New(db)
 	params := GetAggregateIdByNaturalKeyParams{
 		AggregateTypeID: aggregateTypeId,
 		NaturalKey:      sql.NullString{String: naturalKey, Valid: true},
@@ -159,8 +149,9 @@ func (s *PostgresStorageEngine) GetAggregateByKey(ctx context.Context, aggregate
 	return id, nil
 }
 
-func (s *PostgresStorageEngine) GetAggregateTypes(ctx context.Context) ([]evercore.IdNamePair, error) {
-	queries := New(s.db)
+func (s *PostgresStorageEngine) GetAggregateTypes(tx evercore.StorageEngineTxInfo, ctx context.Context) ([]evercore.IdNamePair, error) {
+	db := tx.(*sql.Tx)
+	queries := New(db)
 
 	aggregateTypes, err := queries.GetAggregateTypes(ctx)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -181,8 +172,9 @@ func (s *PostgresStorageEngine) GetAggregateTypes(ctx context.Context) ([]everco
 	return localAggregateTypes, nil
 }
 
-func (s *PostgresStorageEngine) GetEventTypes(ctx context.Context) ([]evercore.IdNamePair, error) {
-	queries := New(s.db)
+func (s *PostgresStorageEngine) GetEventTypes(tx evercore.StorageEngineTxInfo, ctx context.Context) ([]evercore.IdNamePair, error) {
+	db := tx.(*sql.Tx)
+	queries := New(db)
 
 	eventTypes, err := queries.GetEventTypes(ctx)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -203,8 +195,9 @@ func (s *PostgresStorageEngine) GetEventTypes(ctx context.Context) ([]evercore.I
 	return localEventTypes, nil
 }
 
-func (s *PostgresStorageEngine) GetSnapshotForAggregate(ctx context.Context, aggregateId int64) (*evercore.Snapshot, error) {
-	queries := New(s.db)
+func (s *PostgresStorageEngine) GetSnapshotForAggregate(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateId int64) (*evercore.Snapshot, error) {
+	db := tx.(*sql.Tx)
+	queries := New(db)
 
 	snapshotRow, err := queries.GetMostRecentSnapshot(ctx, aggregateId)
 
@@ -225,8 +218,9 @@ func (s *PostgresStorageEngine) GetSnapshotForAggregate(ctx context.Context, agg
 	return &snapshot, nil
 }
 
-func (s *PostgresStorageEngine) GetEventsForAggregate(ctx context.Context, aggregateId int64, afterSequence int64) ([]evercore.SerializedEvent, error) {
-	queries := New(s.db)
+func (s *PostgresStorageEngine) GetEventsForAggregate(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateId int64, afterSequence int64) ([]evercore.SerializedEvent, error) {
+	db := tx.(*sql.Tx)
+	queries := New(db)
 
 	params := GetEventsForAggregateParams{
 		AggregateID:   aggregateId,

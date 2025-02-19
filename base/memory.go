@@ -63,7 +63,7 @@ func (stor *MemoryStorageEngine) GetTransactionInfo() (StorageEngineTxInfo, erro
 	return MemoryStorageEngineTransaction{}, nil
 }
 
-func (store *MemoryStorageEngine) GetEventTypeId(ctx context.Context, name string) (int64, error) {
+func (store *MemoryStorageEngine) GetEventTypeId(tx StorageEngineTxInfo, ctx context.Context, name string) (int64, error) {
 	eventType, exists := store.EventTypes[name]
 	if exists {
 		return eventType, nil
@@ -74,7 +74,7 @@ func (store *MemoryStorageEngine) GetEventTypeId(ctx context.Context, name strin
 	return store.CountEventTypes, nil
 }
 
-func (store *MemoryStorageEngine) GetAggregateTypeId(ctx context.Context, name string) (int64, error) {
+func (store *MemoryStorageEngine) GetAggregateTypeId(tx StorageEngineTxInfo, ctx context.Context, name string) (int64, error) {
 	aggregateTypeId, exists := store.AggregateTypes[name]
 	if exists {
 		return aggregateTypeId, nil
@@ -109,7 +109,7 @@ func (store *MemoryStorageEngine) NewAggregateWithKey(tx StorageEngineTxInfo, ct
 	return store.CountAggregates, nil
 }
 
-func (store *MemoryStorageEngine) GetAggregateById(ctx context.Context, aggregateTypeId int64, aggregateId int64) (int64, *string, error) {
+func (store *MemoryStorageEngine) GetAggregateById(tx StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, aggregateId int64) (int64, *string, error) {
 	aggregateKey, exists := store.AggregateInv[aggregateId]
 	if !exists {
 		return 0, nil, fmt.Errorf("No aggregate exists with Id of %d", aggregateId)
@@ -120,7 +120,7 @@ func (store *MemoryStorageEngine) GetAggregateById(ctx context.Context, aggregat
 	return aggregateId, aggregateKey, nil
 }
 
-func (store *MemoryStorageEngine) GetAggregateByKey(ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
+func (store *MemoryStorageEngine) GetAggregateByKey(tx StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
 	aggregateId, exists := store.Aggregates[naturalKey]
 	if !exists {
 		return 0, fmt.Errorf("No aggregate exists with key of %s", naturalKey)
@@ -131,7 +131,7 @@ func (store *MemoryStorageEngine) GetAggregateByKey(ctx context.Context, aggrega
 	return aggregateId, nil
 }
 
-func (store *MemoryStorageEngine) GetAggregateTypes(ctx context.Context) ([]IdNamePair, error) {
+func (store *MemoryStorageEngine) GetAggregateTypes(tx StorageEngineTxInfo, ctx context.Context) ([]IdNamePair, error) {
 	aggregateTypes := make([]IdNamePair, 0, len(store.AggregateTypes))
 	for name, id := range store.AggregateTypes {
 		current := IdNamePair{
@@ -143,7 +143,7 @@ func (store *MemoryStorageEngine) GetAggregateTypes(ctx context.Context) ([]IdNa
 	return aggregateTypes, nil
 }
 
-func (store *MemoryStorageEngine) GetEventTypes(ctx context.Context) ([]IdNamePair, error) {
+func (store *MemoryStorageEngine) GetEventTypes(tx StorageEngineTxInfo, ctx context.Context) ([]IdNamePair, error) {
 	eventTypes := make([]IdNamePair, 0, len(store.EventTypes))
 	for name, id := range store.EventTypes {
 		current := IdNamePair{
@@ -155,7 +155,7 @@ func (store *MemoryStorageEngine) GetEventTypes(ctx context.Context) ([]IdNamePa
 	return eventTypes, nil
 }
 
-func (store *MemoryStorageEngine) GetSnapshotForAggregate(ctx context.Context, aggregateId int64) (*Snapshot, error) {
+func (store *MemoryStorageEngine) GetSnapshotForAggregate(tx StorageEngineTxInfo, ctx context.Context, aggregateId int64) (*Snapshot, error) {
 	for i := len(store.CapturedSnapshots) - 1; i >= 0; i-- {
 		if store.CapturedSnapshots[i].AggregateId == aggregateId {
 			return &store.CapturedSnapshots[i], nil
@@ -164,7 +164,7 @@ func (store *MemoryStorageEngine) GetSnapshotForAggregate(ctx context.Context, a
 	return nil, nil
 }
 
-func (store *MemoryStorageEngine) GetEventsForAggregate(ctx context.Context, aggregateId int64, afterSequence int64) ([]SerializedEvent, error) {
+func (store *MemoryStorageEngine) GetEventsForAggregate(tx StorageEngineTxInfo, ctx context.Context, aggregateId int64, afterSequence int64) ([]SerializedEvent, error) {
 	aggregateEvents := make([]SerializedEvent, 0, 10)
 	for _, storageEvent := range store.CapturedEvents {
 		if storageEvent.AggregateID == aggregateId && storageEvent.Sequence > afterSequence {

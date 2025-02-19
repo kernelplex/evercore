@@ -119,6 +119,12 @@ func (store *EventStore) WithContext(ctx context.Context, exec contextFunc) erro
 	if err != nil {
 		return err
 	}
+
+	err = transaction.Commit()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -128,7 +134,7 @@ func (store *EventStore) SaveState(ctx context.Context, tx StorageEngineTxInfo, 
 
 	var storageEvents = make([]StorageEngineEvent, 0, len(events))
 	for _, event := range events {
-		eventTypeId, err := store.getEventTypeId(ctx, event.EventType)
+		eventTypeId, err := store.getEventTypeId(tx, ctx, event.EventType)
 		if err != nil {
 			return err
 		}
@@ -165,8 +171,13 @@ func (store *EventStore) Warmup(ctx context.Context) error {
 		return nil
 	}
 
+	tx, err := store.storageEngine.GetTransactionInfo()
+	if err != nil {
+		return err
+	}
+
 	if len(store.eventTypeLookup) == 0 {
-		eventTypes, err := store.storageEngine.GetEventTypes(ctx)
+		eventTypes, err := store.storageEngine.GetEventTypes(tx, ctx)
 		if err != nil {
 			return err
 		}
@@ -175,7 +186,7 @@ func (store *EventStore) Warmup(ctx context.Context) error {
 	}
 
 	if len(store.aggregateTypeLookup) == 0 {
-		aggregateTypes, err := store.storageEngine.GetAggregateTypes(ctx)
+		aggregateTypes, err := store.storageEngine.GetAggregateTypes(tx, ctx)
 		if err != nil {
 			return err
 		}
@@ -185,7 +196,7 @@ func (store *EventStore) Warmup(ctx context.Context) error {
 }
 
 func (store *EventStore) newAggregate(stx *EventStoreContextType, aggregateType string) (int64, error) {
-	aggregateTypeId, err := store.getAggregateTypeId(aggregateType)
+	aggregateTypeId, err := store.getAggregateTypeId(stx.Transaction, stx.context, aggregateType)
 	if err != nil {
 		return 0, err
 	}
@@ -193,7 +204,7 @@ func (store *EventStore) newAggregate(stx *EventStoreContextType, aggregateType 
 }
 
 func (store *EventStore) newAggregateWithKey(stx *EventStoreContextType, aggregateType string, naturalKey string) (int64, error) {
-	aggregateTypeId, err := store.getAggregateTypeId(aggregateType)
+	aggregateTypeId, err := store.getAggregateTypeId(stx.Transaction, stx.context, aggregateType)
 	if err != nil {
 		return 0, err
 	}
@@ -203,14 +214,13 @@ func (store *EventStore) newAggregateWithKey(stx *EventStoreContextType, aggrega
 // Gets the aggregate type id by name.
 // This first checks our local map to see if the name already exists, if so,
 // we can avoid the database call.
-func (store *EventStore) getAggregateTypeId(aggregateTypeName string) (int64, error) {
+func (store *EventStore) getAggregateTypeId(tx StorageEngineTxInfo, ctx context.Context, aggregateTypeName string) (int64, error) {
 	aggregateId, exists := store.aggregateTypeLookup[aggregateTypeName]
 	if exists {
 		return aggregateId, nil
 	}
 
-	ctx := context.Background()
-	aggregateId, err := store.storageEngine.GetAggregateTypeId(ctx, aggregateTypeName)
+	aggregateId, err := store.storageEngine.GetAggregateTypeId(tx, ctx, aggregateTypeName)
 	if err != nil {
 		return 0, err
 	}
@@ -221,13 +231,13 @@ func (store *EventStore) getAggregateTypeId(aggregateTypeName string) (int64, er
 // Gets the event type id by name
 // This first checks the local map to see if the name already exists, if so,
 // we can avoid the database call.
-func (store *EventStore) getEventTypeId(ctx context.Context, eventTypeName string) (int64, error) {
+func (store *EventStore) getEventTypeId(tx StorageEngineTxInfo, ctx context.Context, eventTypeName string) (int64, error) {
 	eventTypeId, exists := store.eventTypeLookup[eventTypeName]
 	if exists {
 		return eventTypeId, nil
 	}
 
-	eventTypeId, err := store.storageEngine.GetEventTypeId(ctx, eventTypeName)
+	eventTypeId, err := store.storageEngine.GetEventTypeId(tx, ctx, eventTypeName)
 	if err != nil {
 		return 0, err
 	}
@@ -239,29 +249,29 @@ func (store *EventStore) getEventTypeId(ctx context.Context, eventTypeName strin
 // Retrieves an aggregate id by its natural key instead of its id.
 func (store *EventStore) getAggregateIdByKey(stx *EventStoreContextType, aggregateTypeName string, naturalKey string) (int64, error) {
 
-	aggregateTypeId, err := store.getAggregateTypeId(aggregateTypeName)
+	aggregateTypeId, err := store.getAggregateTypeId(stx.Transaction, stx.context, aggregateTypeName)
 	if err != nil {
 		return 0, err
 	}
 
-	aggregateId, err := store.storageEngine.GetAggregateByKey(stx.context, aggregateTypeId, naturalKey)
+	aggregateId, err := store.storageEngine.GetAggregateByKey(stx.Transaction, stx.context, aggregateTypeId, naturalKey)
 	return aggregateId, err
 }
 
 func (store *EventStore) getAggregateById(stx *EventStoreContextType, aggregateTypeName string, aggregateId int64) (int64, *string, error) {
 
-	aggregateTypeId, err := store.getAggregateTypeId(aggregateTypeName)
+	aggregateTypeId, err := store.getAggregateTypeId(stx.Transaction, stx.context, aggregateTypeName)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	id, key, err := store.storageEngine.GetAggregateById(stx.context, aggregateTypeId, aggregateId)
+	id, key, err := store.storageEngine.GetAggregateById(stx.Transaction, stx.context, aggregateTypeId, aggregateId)
 	return id, key, err
 }
 
 // Retrieves the most recent snapshot for the aggregate.
 func (store *EventStore) loadSnapshot(stx *EventStoreContextType, aggregateId int64) (*Snapshot, error) {
-	snapshot, err := store.storageEngine.GetSnapshotForAggregate(stx.context, aggregateId)
+	snapshot, err := store.storageEngine.GetSnapshotForAggregate(stx.Transaction, stx.context, aggregateId)
 	return snapshot, err
 }
 
@@ -269,5 +279,5 @@ func (store *EventStore) loadSnapshot(stx *EventStoreContextType, aggregateId in
 // particular sequence.  This is so if we have a snapshot, we only have to load
 // events after that snapshot's sequence.
 func (store *EventStore) loadEvents(stx *EventStoreContextType, aggregateId int64, afterSequence int64) (EventSlice, error) {
-	return store.storageEngine.GetEventsForAggregate(stx.context, aggregateId, afterSequence)
+	return store.storageEngine.GetEventsForAggregate(stx.Transaction, stx.context, aggregateId, afterSequence)
 }
