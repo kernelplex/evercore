@@ -1,7 +1,7 @@
 # Evercore - Event Sourcing Framework for Go
 
-Evercore is a production-ready event store implementation supporting multiple
-storage backends with strong typing and transaction safety.
+Evercore is an event store implementation supporting multiple storage backends
+with strong typing and transaction safety.
 
 ## Features
 
