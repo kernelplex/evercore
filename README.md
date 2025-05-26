@@ -13,8 +13,9 @@ Evercore is a production-ready event store implementation supporting multiple st
   - Snapshot support
   - Optimistic concurrency control
 - Strong typing:
-  - Generic aggregate state support
+  - Generic aggregate state support (StateAggregate[T])
   - Type-safe event handling
+  - Automatic state validation
 - Transactional operations
 - Natural key support
 - Migration support via Goose
@@ -25,37 +26,63 @@ Evercore is a production-ready event store implementation supporting multiple st
 package main
 
 import (
-	"github.com/yourorg/evercore/base"
-	"github.com/yourorg/evercore/evercoresqlite"
+	"context"
+	"database/sql"
+	"log"
+	"time"
+
+	"github.com/kernelplex/evercore/base"
+	"github.com/kernelplex/evercore/evercoresqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
+// UserState represents the aggregate state
 type UserState struct {
-	Name  string
-	Email string
+	Username string
+	Email    string
+	IsActive bool
 }
 
-type UserCreated struct {
-	base.StateEvent[UserState]
+type UserAggregate struct {
+	base.StateAggregate[UserState]
+}
+
+// UserCreatedEvent represents the creation event
+type UserCreatedEvent struct {
+	Username string
+	Email    string
+	IsActive bool
 }
 
 func main() {
-	// Initialize SQLite storage
-	engine := evercoresqlite.NewSqliteStorageEngine(":memory:")
-	
+	// Initialize SQLite
+	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
+	if err != nil {
+		log.Fatal(err)
+	}
+	evercoresqlite.MigrateUp(db)
+
 	// Create event store
-	store := base.NewEventStore(engine)
-	
-	// Start a context
-	ctx := store.NewContext(context.Background())
-	defer ctx.Commit()
-	
-	// Create aggregate
-	user := base.NewStateAggregate[UserState]()
-	id, _ := ctx.NewAggregateId("User")
-	
-	// Apply event
-	event := UserCreated{State: UserState{Name: "Alice", Email: "alice@example.com"}}
-	ctx.ApplyEventTo(user, event, time.Now(), "init")
+	store := base.NewEventStore(evercoresqlite.NewSqliteStorageEngine(db))
+
+	// Run transaction
+	err = store.WithContext(context.Background(), func(ctx base.EventStoreContext) error {
+		user := UserAggregate{}
+		if err := ctx.CreateAggregateInto(&user); err != nil {
+			return err
+		}
+
+		event := base.NewStateEvent(UserCreatedEvent{
+			Username: "johndoe",
+			Email:    "john@example.com",
+			IsActive: true,
+		})
+		return ctx.ApplyEventTo(&user, event, time.Now(), "init")
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 ```
 
