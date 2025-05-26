@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	evercore "github.com/kernelplex/evercore/base"
+	"github.com/kernelplex/evercore/base"
 	"github.com/kernelplex/evercore/evercoresqlite"
 	_ "github.com/mattn/go-sqlite3"
 )
