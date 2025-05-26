@@ -30,3 +30,4 @@ data.db
 *.db-wal
 
 scratch/
+.aider*

@@ -1,6 +1,7 @@
 package evercore
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -79,5 +80,36 @@ func TestApplyEventStateIgnoresNilPointerFields(t *testing.T) {
 	}
 	if aggregate.State.LastName != "Harvey" {
 		t.Errorf("Expected name to be %s, got %s", "Harvey", aggregate.State.LastName)
+	}
+}
+
+func TestEventStoreContextLoadsState(t *testing.T) {
+	store := NewEventStore(NewMemoryStorageEngine())
+	var firstName = "John"
+	var lastName = "Smith"
+	state := SampleStateAggregate{}
+	err := store.WithContext(context.Background(), func(etx EventStoreContext) error {
+		etx.CreateAggregateInto(&state)
+		err := etx.LoadStateInto(&state, 1)
+		if err != nil {
+			return err
+		}
+		event := SampleCreatedEvent{
+			FirstName: &firstName,
+			LastName:  &lastName,
+		}
+		etx.ApplyEventTo(&state, event, time.Now().UTC(), "")
+		return nil
+	})
+
+	if state.State.FirstName != firstName {
+		t.Errorf("Expected name to be %s, got %s", firstName, state.State.FirstName)
+	}
+	if state.State.LastName != lastName {
+		t.Errorf("Expected name to be %s, got %s", lastName, state.State.LastName)
+	}
+
+	if err != nil {
+		t.Errorf("Event store context failed: %v", err)
 	}
 }

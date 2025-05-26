@@ -83,8 +83,15 @@ func (s *SqliteStorageEngine) GetAggregateTypeId(tx evercore.StorageEngineTxInfo
 	return aggregateTypeId, nil
 }
 
+func (s *SqliteStorageEngine) maybeWrapTx(tx evercore.StorageEngineTxInfo) DBTX {
+	if tx == nil {
+		return s.db
+	}
+	return tx.(*sql.Tx)
+}
+
 func (s *SqliteStorageEngine) NewAggregate(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64) (int64, error) {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 	queries := New(db)
 	id, err := queries.AddAggregate(ctx, aggregateTypeId)
 	return id, err
@@ -94,7 +101,7 @@ func (s *SqliteStorageEngine) NewAggregateWithKey(tx evercore.StorageEngineTxInf
 	if len(naturalKey) > maxKeyLength {
 		return 0, evercore.ErrorKeyExceedsMaximumLength
 	}
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 
 	queries := New(db)
 	params := AddAggregateWithNaturalKeyParams{
@@ -106,7 +113,7 @@ func (s *SqliteStorageEngine) NewAggregateWithKey(tx evercore.StorageEngineTxInf
 }
 
 func (s *SqliteStorageEngine) GetAggregateById(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, aggregateId int64) (int64, *string, error) {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 	queries := New(db)
 	params := GetAggregateByIdParams{
 		AggregateTypeID: aggregateTypeId,
@@ -127,7 +134,7 @@ func (s *SqliteStorageEngine) GetAggregateById(tx evercore.StorageEngineTxInfo, 
 }
 
 func (s *SqliteStorageEngine) GetAggregateByKey(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 	queries := New(db)
 	params := GetAggregateIdByNaturalKeyParams{
 		AggregateTypeID: aggregateTypeId,
@@ -142,7 +149,7 @@ func (s *SqliteStorageEngine) GetAggregateByKey(tx evercore.StorageEngineTxInfo,
 }
 
 func (s *SqliteStorageEngine) GetEventTypes(tx evercore.StorageEngineTxInfo, ctx context.Context) ([]evercore.IdNamePair, error) {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 	queries := New(db)
 
 	eventTypes, err := queries.GetEventTypes(ctx)
@@ -165,7 +172,7 @@ func (s *SqliteStorageEngine) GetEventTypes(tx evercore.StorageEngineTxInfo, ctx
 }
 
 func (s *SqliteStorageEngine) GetAggregateTypes(tx evercore.StorageEngineTxInfo, ctx context.Context) ([]evercore.IdNamePair, error) {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 	queries := New(db)
 
 	aggregateTypes, err := queries.GetAggregateTypes(ctx)
@@ -188,7 +195,7 @@ func (s *SqliteStorageEngine) GetAggregateTypes(tx evercore.StorageEngineTxInfo,
 }
 
 func (s *SqliteStorageEngine) GetSnapshotForAggregate(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateId int64) (*evercore.Snapshot, error) {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 	queries := New(db)
 
 	snapshotRow, err := queries.GetMostRecentSnapshot(ctx, aggregateId)
@@ -211,7 +218,7 @@ func (s *SqliteStorageEngine) GetSnapshotForAggregate(tx evercore.StorageEngineT
 }
 
 func (s *SqliteStorageEngine) GetEventsForAggregate(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateId int64, afterSequence int64) ([]evercore.SerializedEvent, error) {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 	queries := New(db)
 
 	params := GetEventsForAggregateParams{
@@ -247,7 +254,7 @@ func (s *SqliteStorageEngine) GetEventsForAggregate(tx evercore.StorageEngineTxI
 }
 
 func (s *SqliteStorageEngine) WriteState(tx evercore.StorageEngineTxInfo, ctx context.Context, events []evercore.StorageEngineEvent, snapshots evercore.SnapshotSlice) error {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 
 	queries := New(db)
 
