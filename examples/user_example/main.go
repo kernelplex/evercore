@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/yourorg/evercore/base"
-	"github.com/yourorg/evercore/evercoresqlite"
+	"github.com/evercore-dev/evercore/base"
+	"github.com/evercore-dev/evercore/evercoresqlite"
 )
 
 // UserState represents the state of our User aggregate
