@@ -44,7 +44,9 @@ func main() {
 		log.Fatalf("Failed to open database: %v", err)
 		return
 	}
-	evercoresqlite.MigrateUp(db)
+	if err := evercoresqlite.MigrateUp(db); err != nil {
+		log.Fatalf("Failed to migrate database: %v", err)
+	}
 
 	engine := evercoresqlite.NewSqliteStorageEngine(db)
 
