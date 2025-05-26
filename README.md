@@ -1,6 +1,7 @@
 # Evercore - Event Sourcing Framework for Go
 
-Evercore is a production-ready event store implementation supporting multiple storage backends with strong typing and transaction safety.
+Evercore is a production-ready event store implementation supporting multiple
+storage backends with strong typing and transaction safety.
 
 ## Features
 
@@ -26,80 +27,83 @@ Evercore is a production-ready event store implementation supporting multiple st
 package main
 
 import (
-	"context"
-	"database/sql"
-	"log"
-	"time"
+     "context"
+     "database/sql"
+     "log"
+     "time"
 
-	"github.com/kernelplex/evercore/base"
-	"github.com/kernelplex/evercore/evercoresqlite"
-	_ "github.com/mattn/go-sqlite3"
+     "github.com/kernelplex/evercore/base"
+     "github.com/kernelplex/evercore/evercoresqlite"
+     _ "github.com/mattn/go-sqlite3"
 )
 
 // UserState represents the aggregate state
 type UserState struct {
-	Username string
-	Email    string
-	IsActive bool
+     Username string
+     Email    string
+     IsActive bool
 }
 
 type UserAggregate struct {
-	base.StateAggregate[UserState]
+     base.StateAggregate[UserState]
 }
 
 // UserCreatedEvent represents the creation event
 type UserCreatedEvent struct {
-	Username string
-	Email    string
-	IsActive bool
+     Username string
+     Email    string
+     IsActive bool
 }
 
 func main() {
-	// Initialize SQLite
-	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
-	if err != nil {
-		log.Fatal(err)
-	}
-	evercoresqlite.MigrateUp(db)
+     // Initialize SQLite
+     db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
+     if err != nil {
+          log.Fatal(err)
+     }
+     evercoresqlite.MigrateUp(db)
 
-	// Create event store
-	store := base.NewEventStore(evercoresqlite.NewSqliteStorageEngine(db))
+     // Create event store
+     store := base.NewEventStore(evercoresqlite.NewSqliteStorageEngine(db))
 
-	// Run transaction
-	err = store.WithContext(context.Background(), func(ctx base.EventStoreContext) error {
-		user := UserAggregate{}
-		if err := ctx.CreateAggregateInto(&user); err != nil {
-			return err
-		}
+     // Run transaction
+     err = store.WithContext(context.Background(), func(ctx base.EventStoreContext) error {
+          user := UserAggregate{}
+          if err := ctx.CreateAggregateInto(&user); err != nil {
+               return err
+          }
 
-		event := base.NewStateEvent(UserCreatedEvent{
-			Username: "johndoe",
-			Email:    "john@example.com",
-			IsActive: true,
-		})
-		return ctx.ApplyEventTo(&user, event, time.Now(), "init")
-	})
+          event := base.NewStateEvent(UserCreatedEvent{
+               Username: "johndoe",
+               Email:    "john@example.com",
+               IsActive: true,
+          })
+          return ctx.ApplyEventTo(&user, event, time.Now(), "init")
+     })
 
-	if err != nil {
-		log.Fatal(err)
-	}
+     if err != nil {
+          log.Fatal(err)
+     }
 }
 ```
 
 ## Storage Backends
 
 ### PostgreSQL
+
 ```bash
 export PG_TEST_RUNNER_CONNECTION="postgres://user:pass@localhost:5432/db?sslmode=disable"
 make integration-test-postgres
 ```
 
 ### SQLite
+
 ```bash
 make integration-test-sqlite
 ```
 
 ### In-Memory
+
 ```go
 engine := base.NewMemoryStorageEngine()
 ```
@@ -107,11 +111,13 @@ engine := base.NewMemoryStorageEngine()
 ## Testing
 
 Run all unit tests:
+
 ```bash
 make test
 ```
 
 Run integration tests:
+
 ```bash
 make integration-test  # All databases
 make integration-test-sqlite  # SQLite only
@@ -121,6 +127,7 @@ make integration-test-postgres  # PostgreSQL only
 ## Development
 
 Use the scratch directory for experimentation:
+
 ```bash
 make scratch  # Runs scratch/main.go
 ```
@@ -130,6 +137,7 @@ make scratch  # Runs scratch/main.go
 ![Evercore Architecture Diagram](docs/architecture.png)
 
 Key components:
+
 - `EventStore`: Core coordinator
 - `StorageEngine`: Pluggable storage interface
 - `Aggregate`: Domain object interface
