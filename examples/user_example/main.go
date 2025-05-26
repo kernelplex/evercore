@@ -2,27 +2,31 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
 	"log"
 	"time"
 
-	"github.com/evercore-dev/evercore/base"
-	"github.com/evercore-dev/evercore/evercoresqlite"
+	evercore "github.com/kernelplex/evercore/base"
+	"github.com/kernelplex/evercore/evercoresqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // UserState represents the state of our User aggregate
 type UserState struct {
-	ID        int64
-	Username  string
-	Email     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	IsActive  bool
+	Username string
+	Email    string
+	IsActive bool
+}
+
+type UserAggregate struct {
+	evercore.StateAggregate[UserState]
 }
 
 // UserCreatedEvent represents the initial creation of a user
 type UserCreatedEvent struct {
-	base.StateEvent[UserState]
+	Username string
+	Email    string
+	IsActive bool
 }
 
 // UserUpdatedEvent represents updates to a user
@@ -32,70 +36,51 @@ type UserUpdatedEvent struct {
 	IsActive *bool
 }
 
-func (e UserUpdatedEvent) GetEventType() string {
-	return "UserUpdated"
-}
-
-func (e UserUpdatedEvent) Serialize() string {
-	return base.SerializeToJson(e)
-}
-
 func main() {
 	// Initialize SQLite in-memory database
-	engine, err := evercoresqlite.NewSqliteStorageEngineWithConnection("file::memory:?cache=shared")
+	connectionString := "file::memory:?cache=shared"
+	db, err := sql.Open("sqlite3", connectionString)
 	if err != nil {
-		log.Fatalf("Failed to create storage engine: %v", err)
+		log.Fatalf("Failed to open database: %v", err)
+		return
 	}
+	evercoresqlite.MigrateUp(db)
+
+	engine := evercoresqlite.NewSqliteStorageEngine(db)
 
 	// Create event store
-	store := base.NewEventStore(engine)
+	store := evercore.NewEventStore(engine)
 
 	// Run operations in a transaction
-	err = store.WithContext(context.Background(), func(ctx base.EventStoreContext) error {
-		// Create a new user aggregate
-		user := &base.StateAggregate[UserState]{}
-		
-		// Get a new aggregate ID
-		userID, err := ctx.NewAggregateId("User")
+	const username = "John"
+	const email = "john@example.com"
+	const isActive = true
+	user := UserAggregate{}
+	err = store.WithContext(context.Background(), func(etx evercore.EventStoreContext) error {
+		err := etx.CreateAggregateInto(&user)
 		if err != nil {
-			return fmt.Errorf("failed to create aggregate ID: %w", err)
+			return err
 		}
-
-		// Create initial user state
-		now := time.Now()
-		createdEvent := UserCreatedEvent{
-			State: UserState{
-				ID:        userID,
-				Username:  "johndoe",
-				Email:     "john@example.com",
-				CreatedAt: now,
-				UpdatedAt: now,
-				IsActive:  true,
-			},
-		}
-
-		// Apply the creation event
-		if err := ctx.ApplyEventTo(user, createdEvent, now, "user_creation"); err != nil {
-			return fmt.Errorf("failed to apply creation event: %w", err)
-		}
-
-		// Later, update the user
-		newEmail := "john.doe@example.org"
-		updateEvent := UserUpdatedEvent{
-			Email: &newEmail,
-		}
-
-		if err := ctx.ApplyEventTo(user, updateEvent, time.Now(), "user_update"); err != nil {
-			return fmt.Errorf("failed to apply update event: %w", err)
-		}
-
-		// Print final state
-		fmt.Printf("User State:\n%+v\n", user.State)
-
-		return nil
+		createdEvent := evercore.NewStateEvent(UserCreatedEvent{
+			Username: username,
+			Email:    email,
+			IsActive: isActive,
+		})
+		err = etx.ApplyEventTo(&user, createdEvent, time.Now().UTC(), "")
+		return err
 	})
 
 	if err != nil {
 		log.Fatalf("Transaction failed: %v", err)
+	}
+
+	if user.State.Username != username {
+		log.Fatalf("Expected username to be %s, got %s", username, user.State.Username)
+	}
+	if user.State.Email != email {
+		log.Fatalf("Expected email to be %s, got %s", email, user.State.Email)
+	}
+	if user.State.IsActive != isActive {
+		log.Fatalf("Expected isActive to be %t, got %t", isActive, user.State.IsActive)
 	}
 }
