@@ -2,6 +2,7 @@ package evercore
 
 import (
 	"context"
+	"log/slog"
 	"time"
 )
 
@@ -198,6 +199,7 @@ func (store *EventStore) Warmup(ctx context.Context, knownAggregateTypes []strin
 				if err != nil {
 					return err
 				}
+				slog.Info("Adding missing event type", "name", knownEventType, "id", newId)
 				databaseUpdated = true
 				store.eventTypeLookup[knownEventType] = newId
 			}
@@ -225,6 +227,7 @@ func (store *EventStore) Warmup(ctx context.Context, knownAggregateTypes []strin
 				if err != nil {
 					return err
 				}
+				slog.Info("Adding missing aggregate type", "name", knownAggregateType, "id", newId)
 				databaseUpdated = true
 				store.aggregateTypeLookup[knownAggregateType] = newId
 			}
@@ -233,6 +236,7 @@ func (store *EventStore) Warmup(ctx context.Context, knownAggregateTypes []strin
 
 	// Commit the transaction if we updated the database.
 	if databaseUpdated {
+		slog.Info("Database updated, committing transaction")
 		err := tx.Commit()
 		if err != nil {
 			return err
