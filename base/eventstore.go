@@ -157,14 +157,16 @@ func (store *EventStore) SaveState(ctx context.Context, tx StorageEngineTxInfo, 
 	return store.storageEngine.WriteState(tx, ctx, storageEvents, snapshots)
 }
 
-// Can be used to warm up the event store by loading existing aggregate types
-// and event types.  This is intended to be called during startup of the
-// calling application to ensure all known aggregate types and event types
-// are pre-loaded into memory. This can save on database calls during
-// contexts since these are memoized inside an internal map.
+// Warmup pre-loads aggregate and event types into memory to avoid database calls during contexts.
+// This is intended to be called during application startup.
 //
-// When using Warmup, it should be called as early as possible.
-func (store *EventStore) Warmup(ctx context.Context) error {
+// Parameters:
+//   - knownAggregateTypes: List of aggregate type names to pre-load
+//   - knownEventTypes: List of event type names to pre-load
+//
+// This memoizes the type IDs in an internal map, saving database calls during normal operation.
+// Should be called as early as possible in application startup.
+func (store *EventStore) Warmup(ctx context.Context, knownAggregateTypes []string, knownEventTypes []string) error {
 
 	// Early return if we already have event types and aggregate types
 	if len(store.eventTypeLookup) > 0 && len(store.aggregateTypeLookup) > 0 {
@@ -175,11 +177,30 @@ func (store *EventStore) Warmup(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	databaseUpdated := false
 
 	if len(store.eventTypeLookup) == 0 {
 		eventTypes, err := store.storageEngine.GetEventTypes(tx, ctx)
 		if err != nil {
 			return err
+		}
+
+		// Verify all known event types exist in storage
+		eventTypeMap := make(map[string]bool)
+		for _, et := range eventTypes {
+			eventTypeMap[et.Name] = true
+		}
+
+		// Add any missing event types.
+		for _, knownEventType := range knownEventTypes {
+			if !eventTypeMap[knownEventType] {
+				newId, err := store.storageEngine.GetEventTypeId(tx, ctx, knownEventType)
+				if err != nil {
+					return err
+				}
+				databaseUpdated = true
+				store.eventTypeLookup[knownEventType] = newId
+			}
 		}
 
 		store.eventTypeLookup = MapNameToId(eventTypes)
@@ -191,11 +212,38 @@ func (store *EventStore) Warmup(ctx context.Context) error {
 			return err
 		}
 		store.aggregateTypeLookup = MapNameToId(aggregateTypes)
+
+		// Verify all known aggregate types exist in storage
+		aggregateTypeMap := make(map[string]bool)
+		for _, at := range aggregateTypes {
+			aggregateTypeMap[at.Name] = true
+		}
+		// Add any missing aggregate types.
+		for _, knownAggregateType := range knownAggregateTypes {
+			if !aggregateTypeMap[knownAggregateType] {
+				newId, err := store.storageEngine.GetAggregateTypeId(tx, ctx, knownAggregateType)
+				if err != nil {
+					return err
+				}
+				databaseUpdated = true
+				store.aggregateTypeLookup[knownAggregateType] = newId
+			}
+		}
 	}
+
+	// Commit the transaction if we updated the database.
+	if databaseUpdated {
+		err := tx.Commit()
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
 func (store *EventStore) newAggregate(stx *EventStoreContextType, aggregateType string) (int64, error) {
+
 	aggregateTypeId, err := store.getAggregateTypeId(stx.Transaction, stx.context, aggregateType)
 	if err != nil {
 		return 0, err

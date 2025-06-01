@@ -31,3 +31,5 @@ data.db
 
 scratch/
 .aider*
+
+tmp/
