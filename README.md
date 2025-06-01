@@ -143,3 +143,11 @@ Key components:
 - `Aggregate`: Domain object interface
 - `EventState`: Event interface
 - `StateAggregate`: Generic state container
+
+## Hints
+
+- Use store.Warmup() as early as possible in your application
+- Keep the list of known aggregate and event types up to date.  
+  This will save database calls during normal operation.
+- Use separate databases for your event store and your relational  
+  model (espectially if using sqlite)

@@ -34,8 +34,14 @@ func NewEventStoreTestScenarios(iut *EventStore) EventStoreTestScenarios {
 }
 
 func (s *EventStoreTestScenarios) RunScenarios(t *testing.T) {
+	t.Run("", s.WarmupWorks)
 	t.Run("", s.CreateProfileAggregate)
 	t.Run("", s.CreateUserAggregate)
+}
+
+func (s *EventStoreTestScenarios) WarmupWorks(t *testing.T) {
+	ctx := context.Background()
+	s.iut.Warmup(ctx, []string{AggregateTypeProfile}, []string{EventTypeCreated})
 }
 
 func (s *EventStoreTestScenarios) CreateProfileAggregate(t *testing.T) {
