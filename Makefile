@@ -1,5 +1,9 @@
 .PHONY: all
-all: test
+all: test tool
+
+.PHONY: tool
+tool:
+	go build -o build/evercoregen ./cmd/tool/
 
 # Code generation
 .PHONY: sqlc-gen

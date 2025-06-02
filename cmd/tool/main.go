@@ -82,11 +82,21 @@ func GenerateCode(outputData OutputData) error {
 }
 
 func main() {
-	var outputDir string
-	var outputPkg string
+	var (
+		outputDir   string
+		outputPkg   string
+		verbose     bool
+		dryRun      bool
+		showVersion bool
+		configFile  string
+	)
 
 	flag.StringVar(&outputDir, "output-dir", "", "Directory to write generated files (required)")
 	flag.StringVar(&outputPkg, "output-pkg", "", "Go package name for generated files (required)")
+	flag.BoolVar(&verbose, "verbose", false, "Enable verbose logging")
+	flag.BoolVar(&dryRun, "dry-run", false, "Preview changes without writing files")
+	flag.BoolVar(&showVersion, "version", false, "Show version information")
+	flag.StringVar(&configFile, "config", "", "Path to config file (optional)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
@@ -127,7 +137,16 @@ func main() {
 		log.Fatal(err)
 	}
 
-	locatedDirectives, err := walkProject(moduleName)
+	// logger := NewLogger(verbose)
+	config := DefaultConfig()
+	config.OutputDir = outputDir
+	config.OutputPkg = outputPkg
+
+	if configFile != "" {
+		// TODO: Load config from file
+	}
+
+	locatedDirectives, err := walkProject(moduleName, config)
 	if err != nil {
 		var fileErr *ErrFileProcessing
 		if errors.As(err, &fileErr) {
@@ -149,6 +168,7 @@ func main() {
 	output.StateEvents = locatedDirectives.StateEvents
 	output.Events = locatedDirectives.Events
 
+	fmt.Println("************** here1 **************")
 	/*
 		jsonData, err := json.MarshalIndent(output, "", "  ")
 		if err != nil {

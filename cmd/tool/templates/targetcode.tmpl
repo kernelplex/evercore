@@ -12,15 +12,15 @@ import (
 
 const (
 	{{- range $key, $value := .Aggregates}}
-	Aggregate{{$key}} = "{{$key}}"
+	{{$key}}Type = "{{$key}}"
 	{{- end}}
 
 	{{- range $key, $value := .StateEvents}}
-	Event{{$key}} = "{{$key}}"
+	{{$key}}Type = "{{$key}}"
 	{{- end}}
 
 	{{- range $key, $value := .Events}}
-	Event{{$key}} = "{{$key}}"
+	{{$key}}Type = "{{$key}}"
 	{{- end}}
 )
 
@@ -51,7 +51,7 @@ func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, e
 	// ================================================== 
 
 	{{- range $key, $value := .StateEvents}}
-	case "{{$key}}":
+	case {{$key}}Type:
 		eventState := {{$value.PackageName}}.{{$value.Struct}} {}
 		err := evercore.DecodeEventStateTo(ev, &eventState)
 		if err != nil {

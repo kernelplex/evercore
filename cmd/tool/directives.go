@@ -32,8 +32,8 @@ func NewLocatedDirectives() LocatedDirectives {
 }
 
 func validateDirective(directive string, filePath string, lineNum int) error {
-	switch directive {
-	case string(DirectiveAggregate), string(DirectiveEvent), string(DirectiveStateEvent):
+	switch DirectiveType(directive) {
+	case DirectiveAggregate, DirectiveEvent, DirectiveStateEvent:
 		return nil
 	default:
 		return &ErrInvalidDirective{
