@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 type DirectiveType string
 
 const (
@@ -39,9 +37,9 @@ func validateDirective(directive string, filePath string, lineNum int) error {
 		return nil
 	default:
 		return &ErrInvalidDirective{
-            Directive: directive,
-            FilePath:  filePath,
-            Line:      lineNum,
-        }
+			Directive: directive,
+			FilePath:  filePath,
+			Line:      lineNum,
+		}
 	}
 }

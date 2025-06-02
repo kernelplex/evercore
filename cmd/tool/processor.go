@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 )
 
 func processFile(filePath string, moduleName string) (*LocatedDirectives, error) {
@@ -33,18 +34,18 @@ func processFile(filePath string, moduleName string) (*LocatedDirectives, error)
 			directive := matches[1]
 			if err := validateDirective(directive, filePath, lineIndex+1); err != nil {
 				return nil, &ErrFileProcessing{
-                    FilePath: filePath,
-                    Err:      err,
-                }
+					FilePath: filePath,
+					Err:      err,
+				}
 			}
 
 			nextLine := findNextNonEmptyLine(lines, lineIndex+1)
 			structName, err := extractStructName(nextLine, filePath)
 			if err != nil {
 				return nil, &ErrFileProcessing{
-                    FilePath: filePath,
-                    Err:      err,
-                }
+					FilePath: filePath,
+					Err:      err,
+				}
 			}
 
 			pkgPath := filepath.Join(moduleName, filepath.Dir(filePath))
@@ -100,16 +101,16 @@ func extractStructName(line string, filePath string) (string, error) {
 	matches := typeRe.FindStringSubmatch(line)
 	if len(matches) < 2 {
 		return "", &ErrInvalidStructDefinition{
-            FilePath: filePath,
-            Content:  line,
-        }
+			FilePath: filePath,
+			Content:  line,
+		}
 	}
-	
+
 	if !isValidGoIdentifier(matches[1]) {
 		return "", &ErrInvalidStructDefinition{
-            FilePath: filePath,
-            Content:  line,
-        }
+			FilePath: filePath,
+			Content:  line,
+		}
 	}
 	return matches[1], nil
 }
@@ -118,7 +119,7 @@ func isValidGoIdentifier(name string) bool {
 	if len(name) == 0 {
 		return false
 	}
-	
+
 	for i, c := range name {
 		if !unicode.IsLetter(c) && c != '_' && (i == 0 || !unicode.IsDigit(c)) {
 			return false
