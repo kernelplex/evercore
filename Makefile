@@ -3,7 +3,7 @@ all: test tool
 
 .PHONY: tool
 tool:
-	go build -o build/evercoregen ./cmd/tool/
+	go build -o build/evercoregen ./cmd/evercoregen/
 
 # Code generation
 .PHONY: sqlc-gen
