@@ -7,4 +7,10 @@ const (
 	{{- end}}
 )
 
+var List = []string{
+	{{- range $key, $value := .Aggregates}}
+	{{$key}}Type,
+	{{- end}}
+}
+
 

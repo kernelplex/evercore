@@ -10,20 +10,6 @@ import (
 	{{- end}}
 )
 
-const (
-	{{- range $key, $value := .Aggregates}}
-	{{$key}}Type = "{{$key}}"
-	{{- end}}
-
-	{{- range $key, $value := .StateEvents}}
-	{{$key}}Type = "{{$key}}"
-	{{- end}}
-
-	{{- range $key, $value := .Events}}
-	{{$key}}Type = "{{$key}}"
-	{{- end}}
-)
-
 func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, error) {
 	switch ev.EventType {
 
@@ -52,7 +38,7 @@ func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, e
 	
 	{{range $key, $value := .Events}}
 	case "{{$key}}":
-		eventState := {{$value.Struct}}{}
+		eventState := {{$value.PackageName}}.{{$value.Struct}}{}
 		err := evercore.DecodeEventStateTo(ev, &eventState)
 		if err != nil {
 			return nil, err
@@ -62,7 +48,5 @@ func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, e
 	}
 	{{- end}}
 	{{- end}}
-	}
 	panic(fmt.Sprintf("Failed to decode event type: %s", ev.EventType))
 }
-

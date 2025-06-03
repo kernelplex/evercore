@@ -11,5 +11,13 @@ const (
 	{{- end}}
 )
 
+var List = []string{
+	{{- range $key, $value := .StateEvents}}
+	{{$key}}Type,
+	{{- end}}
+	{{- range $key, $value := .Events}}
+	{{$key}}Type,
+	{{- end}}
+}
 
 
