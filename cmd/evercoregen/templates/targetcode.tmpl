@@ -24,23 +24,6 @@ const (
 	{{- end}}
 )
 
-// Aggregates contains all aggregate types
-var Aggregates = []string{
-	{{- range $key, $value := .Aggregates}}
-	"{{$key}}",
-	{{- end}}
-}
-
-// Events contains all event types
-var Events = []string{
-	{{- range $key, $value := .Events}}
-	"{{$key}}",
-	{{- end}}
-	{{- range $key, $value := .StateEvents}}
-	"{{$key}}",
-	{{- end}}
-}
-
 func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, error) {
 	switch ev.EventType {
 
@@ -64,12 +47,12 @@ func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, e
 	{{- if .Events}}
 
 	// ================================================== 
-	// Other Events
+	// Non-state Events
 	// ================================================== 
 	
 	{{range $key, $value := .Events}}
 	case "{{$key}}":
-		eventState := {{$value}}{}
+		eventState := {{$value.Struct}}{}
 		err := evercore.DecodeEventStateTo(ev, &eventState)
 		if err != nil {
 			return nil, err

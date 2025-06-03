@@ -108,6 +108,51 @@ make integration-test-sqlite
 engine := base.NewMemoryStorageEngine()
 ```
 
+### The evercoregen tool
+
+The evercoregen tool can be used to automatically generate the
+event and aggregate lists as well as build an event decoder
+for your project.
+
+To install the tool in your project (go v1.24+):
+
+```bash
+ go get --tool github.com/kernelplex/evercore/cmd/evercoregen/
+```
+This tool will look for sentinel comments in your *.go files:
+
+### For Aggregates
+
+```go
+// evercore:aggregate
+type UserAggregate struct {
+  ...
+}
+```
+
+### For State Events
+
+```go
+// evercore:state_event
+type UserCreatedEvent struct {
+  ...
+
+## For Other Events
+
+```go
+// evercore:event
+type UserCreatedEvent struct {
+  ...
+
+
+### Using the evercoregen tool
+
+To invoke the tool:
+
+```bash
+go tool evercoregen  -output-dir=internal/generated -output-pkg=generated
+```
+
 ## Testing
 
 Run all unit tests:
