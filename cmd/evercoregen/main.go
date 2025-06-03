@@ -16,6 +16,7 @@ var templateFiles embed.FS
 type OutputConfig struct {
 	OutputDir string `json:"output_dir"`
 	OutputPkg string `json:"output_pkg"`
+	Verbose   bool   `json:"verbose"`
 }
 
 type OutputData struct {
@@ -30,17 +31,13 @@ func main() {
 		outputDir   string
 		outputPkg   string
 		verbose     bool
-		dryRun      bool
 		showVersion bool
-		configFile  string
 	)
 
 	flag.StringVar(&outputDir, "output-dir", "", "Directory to write generated files (required)")
 	flag.StringVar(&outputPkg, "output-pkg", "", "Go package name for generated files (required)")
 	flag.BoolVar(&verbose, "verbose", false, "Enable verbose logging")
-	flag.BoolVar(&dryRun, "dry-run", false, "Preview changes without writing files")
 	flag.BoolVar(&showVersion, "version", false, "Show version information")
-	flag.StringVar(&configFile, "config", "", "Path to config file (optional)")
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options]\n", os.Args[0])
@@ -81,13 +78,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// logger := NewLogger(verbose)
 	config := DefaultConfig()
 	config.OutputDir = outputDir
 	config.OutputPkg = outputPkg
+	config.Verbose = verbose
 
-	if configFile != "" {
-		// TODO: Load config from file
+	if verbose {
+		log.Printf("Verbose mode enabled")
+		log.Printf("Output directory: %s", outputDir)
+		log.Printf("Output package: %s", outputPkg)
 	}
 
 	locatedDirectives, err := walkProject(moduleName, config)
@@ -105,6 +104,7 @@ func main() {
 		Config: OutputConfig{
 			OutputDir: outputDir,
 			OutputPkg: outputPkg,
+			Verbose:   verbose,
 		},
 		ModuleName: moduleName,
 	}
@@ -112,15 +112,6 @@ func main() {
 	output.Aggregates = locatedDirectives.Aggregates
 	output.StateEvents = locatedDirectives.StateEvents
 	output.Events = locatedDirectives.Events
-
-	fmt.Println("************** here1 **************")
-	/*
-		jsonData, err := json.MarshalIndent(output, "", "  ")
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println(string(jsonData))
-	*/
 
 	err = GenerateCode(output)
 	if err != nil {

@@ -74,6 +74,12 @@ func shouldProcessFile(path string, config Config) bool {
 }
 
 func walkProject(moduleName string, config Config) (LocatedDirectives, error) {
+	if config.Verbose {
+		log.Printf("Starting project scan")
+		log.Printf("Module: %s", moduleName)
+		log.Printf("Include patterns: %v", config.IncludeGlobs)
+		log.Printf("Exclude patterns: %v", config.ExcludeDirs)
+	}
 	startTime := time.Now()
 	var filesProcessed, filesSkipped int
 	locatedDirectives := NewLocatedDirectives()

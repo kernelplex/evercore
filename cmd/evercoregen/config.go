@@ -12,5 +12,6 @@ func DefaultConfig() Config {
 	return Config{
 		ExcludeDirs:  []string{"vendor", "testdata", ".*"},
 		IncludeGlobs: []string{"**/*.go"},
+		Verbose:      false,
 	}
 }

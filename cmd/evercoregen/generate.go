@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -11,6 +10,13 @@ import (
 )
 
 func GenerateCode(outputData OutputData) error {
+	if outputData.Config.Verbose {
+		log.Printf("Starting code generation")
+		log.Printf("Found %d aggregates, %d events, %d state events",
+			len(outputData.Aggregates),
+			len(outputData.Events),
+			len(outputData.StateEvents))
+	}
 	uniquePackages := make(map[string]struct{})
 
 	// Helper function to collect values from a map
@@ -37,12 +43,6 @@ func GenerateCode(outputData OutputData) error {
 	// Store in outputData
 	outputData.UniqueImports = uniqueImports
 
-	jsonData, err := json.MarshalIndent(outputData, "", "  ")
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(string(jsonData))
-
 	// Generate the output file using template
 	main_tmpl, err := template.ParseFS(templateFiles, "templates/targetcode.tmpl")
 	if err != nil {
@@ -60,6 +60,9 @@ func GenerateCode(outputData OutputData) error {
 	}
 
 	outputFile := filepath.Join(outputData.Config.OutputDir, "generated.go")
+	if outputData.Config.Verbose {
+		log.Printf("Creating main output file: %s", outputFile)
+	}
 	f, err := os.Create(outputFile)
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
@@ -73,11 +76,17 @@ func GenerateCode(outputData OutputData) error {
 
 	// Create subdirectories for events and aggregates
 	eventsDir := filepath.Join(outputData.Config.OutputDir, "events")
+	if outputData.Config.Verbose {
+		log.Printf("Creating events directory: %s", eventsDir)
+	}
 	if err := os.MkdirAll(eventsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create events directory: %w", err)
 	}
 
 	aggregatesDir := filepath.Join(outputData.Config.OutputDir, "aggregates")
+	if outputData.Config.Verbose {
+		log.Printf("Creating aggregates directory: %s", aggregatesDir)
+	}
 	if err := os.MkdirAll(aggregatesDir, 0755); err != nil {
 		return fmt.Errorf("failed to create aggregates directory: %w", err)
 	}
