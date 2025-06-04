@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
+	"strings"
 )
 
 //go:embed templates/*
@@ -67,12 +67,9 @@ func main() {
 			log.Fatalf("failed to create output directory: %v", err)
 		}
 	}
+	// Strip the trailing slash from the output directory if it exists.
+	outputDir = strings.TrimSuffix(outputDir, "/")
 
-	// Clean the output directory path
-	outputDir, err := filepath.Abs(outputDir)
-	if err != nil {
-		log.Fatalf("invalid output directory path: %v", err)
-	}
 	moduleName, err := getModuleName()
 	if err != nil {
 		log.Fatal(err)

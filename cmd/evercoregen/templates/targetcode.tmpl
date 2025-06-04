@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"github.com/kernelplex/evercore/base"
 
+	events "{{.ModuleName}}/{{.Config.OutputDir}}/events"
+
 	{{- range .UniqueImports}}
 	"{{.}}"
 	{{- end}}
@@ -20,7 +22,7 @@ func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, e
 	// ================================================== 
 
 	{{- range $key, $value := .StateEvents}}
-	case {{$key}}Type:
+	case events.{{$key}}Type:
 		eventState := {{$value.PackageName}}.{{$value.Struct}} {}
 		err := evercore.DecodeEventStateTo(ev, &eventState)
 		if err != nil {
@@ -37,7 +39,7 @@ func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, e
 	// ================================================== 
 	
 	{{range $key, $value := .Events}}
-	case "{{$key}}":
+	case events.{{$key}}Type:
 		eventState := {{$value.PackageName}}.{{$value.Struct}}{}
 		err := evercore.DecodeEventStateTo(ev, &eventState)
 		if err != nil {
