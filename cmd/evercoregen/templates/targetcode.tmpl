@@ -52,3 +52,7 @@ func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, e
 	{{- end}}
 	panic(fmt.Sprintf("Failed to decode event type: %s", ev.EventType))
 }
+
+func init() {
+	evercore.RegisterEventDecoder(EventDecoder)
+}
