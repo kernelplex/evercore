@@ -18,10 +18,12 @@ type UserState struct {
 	IsActive bool
 }
 
+//evercoregen:aggregate
 type UserAggregate struct {
 	evercore.StateAggregate[UserState]
 }
 
+//evercoregen:state_event
 // UserCreatedEvent represents the initial creation of a user
 type UserCreatedEvent struct {
 	Username string
@@ -29,6 +31,7 @@ type UserCreatedEvent struct {
 	IsActive bool
 }
 
+//evercoregen:state_event
 // UserUpdatedEvent represents updates to a user
 type UserUpdatedEvent struct {
 	Username *string

@@ -150,7 +150,7 @@ func CopyFields(e, t interface{}) error {
 	return nil
 }
 
-func (t *StateAggregate[T]) DecodeStateEvent(ev SerializedEvent) (EventState, error) {
+func (t *StateAggregate[T]) DecodeEvent(ev SerializedEvent) (EventState, error) {
 	if len(eventDecoders) == 0 {
 		panic("No EventDecoders set")
 	}

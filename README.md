@@ -23,6 +23,37 @@ with strong typing and transaction safety.
 
 ## Quick Start
 
+The evercoregen tool generates boilerplate code for your
+aggregates and events. First mark your types with these
+annotations:
+
+```go
+//evercoregen:aggregate
+type UserAggregate struct {
+    base.StateAggregate[UserState]
+}
+
+//evercoregen:state_event 
+type UserCreatedEvent struct {
+    Username string
+    Email    string
+}
+
+//evercoregen:event
+type UserLoggedInEvent struct {
+    Timestamp time.Time
+}
+```
+
+Then install and run evercoregen:
+
+```bash
+go install github.com/kernelplex/evercore/cmd/evercoregen@latest
+evercoregen -output-dir=internal/generated -output-pkg=generated
+```
+
+Here's a complete example:
+
 ```go
 package main
 
@@ -119,6 +150,7 @@ To install the tool in your project (go v1.24+):
 ```bash
  go get --tool github.com/kernelplex/evercore/cmd/evercoregen/
 ```
+
 This tool will look for sentinel comments in your *.go files:
 
 ### For Aggregates
