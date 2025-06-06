@@ -2,7 +2,6 @@
 package {{.Config.OutputPkg}}
 
 import (
-	"fmt"
 	"github.com/kernelplex/evercore/base"
 
 	events "{{.ModuleName}}/{{.Config.OutputDir}}/events"
@@ -33,6 +32,7 @@ func StateEventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventSta
 	{{- end}}
 	{{- end}}
 	}
+	return nil, nil
 }
 
 func init() {
