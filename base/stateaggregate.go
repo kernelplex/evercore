@@ -18,12 +18,12 @@ type StateAggregate[T any] struct {
 // EventDecoder is a function that decodes an event into an EventState.
 type EventDecoder func(aggregateType string, ev SerializedEvent) (EventState, error)
 
-var eventDecoder EventDecoder
+var eventDecoders []EventDecoder
 
-// SetEventDecoder sets the EventDecoder for StateAggregate - the function should be able to
+// RegisterStateEventDecoder sets the EventDecoder for StateAggregate - the function should be able to
 // decode all events for any aggregate using StateAggregate.
-func SetEventDecoder(decoder EventDecoder) {
-	eventDecoder = decoder
+func RegisterStateEventDecoder(decoder EventDecoder) {
+	eventDecoders = append(eventDecoders, decoder)
 }
 
 // Implement Aggregate interface for StateAggregate
@@ -150,9 +150,19 @@ func CopyFields(e, t interface{}) error {
 	return nil
 }
 
-func (t *StateAggregate[T]) DecodeEvent(ev SerializedEvent) (EventState, error) {
-	if eventDecoder == nil {
-		panic("EventDecoder not set")
+func (t *StateAggregate[T]) DecodeStateEvent(ev SerializedEvent) (EventState, error) {
+	if len(eventDecoders) == 0 {
+		panic("No EventDecoders set")
 	}
-	return eventDecoder(t.GetAggregateType(), ev)
+
+	for _, decoder := range eventDecoders {
+		eventState, err := decoder(t.GetAggregateType(), ev)
+		if err != nil {
+			return nil, err
+		}
+		if eventState != nil {
+			return eventState, nil
+		}
+	}
+	return nil, fmt.Errorf("no decoder could handle event type %s", ev.EventType)
 }

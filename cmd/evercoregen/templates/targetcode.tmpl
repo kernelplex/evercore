@@ -54,5 +54,5 @@ func EventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, e
 }
 
 func init() {
-	evercore.RegisterEventDecoder(EventDecoder)
+	evercore.SetEventDecoder(EventDecoder)
 }
