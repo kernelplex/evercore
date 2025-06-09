@@ -85,8 +85,7 @@ func (t *StateAggregate[T]) GetSnapshotState() (*string, error) {
 
 // ApplySnapshot applies a snapshot to the aggregate
 func (t *StateAggregate[T]) ApplySnapshot(snapshot *Snapshot) error {
-	// Create a new instance of T
-	newState := reflect.New(reflect.TypeOf(t.State)).Interface().(T)
+	var newState T
 	err := json.Unmarshal([]byte(snapshot.State), &newState)
 	if err != nil {
 		return err
