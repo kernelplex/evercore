@@ -22,6 +22,9 @@ func GenerateCode(outputData OutputData) error {
 	// Helper function to collect values from a map
 	collectValues := func(m map[string]Directive) {
 		for _, directive := range m {
+			if directive.Type == "aggregate" {
+				continue
+			}
 			uniquePackages[directive.Package] = struct{}{}
 		}
 	}

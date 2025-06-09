@@ -35,6 +35,22 @@ func StateEventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventSta
 	return nil, nil
 }
 
+func EventDecoder(ev evercore.SerializedEvent) (evercore.EventState, error) {
+	switch ev.EventType {
+	{{- range $key, $value := .Events}}
+	case events.{{$key}}Type:
+		eventState := {{$value.PackageName}}.{{$value.Struct}} {}
+		err := evercore.DecodeEventStateTo(ev, &eventState)
+		if err != nil {
+			return nil, err
+		}
+		state := evercore.NewStateEvent(eventState)
+		return state, nil
+	{{- end}}
+	}
+	return nil, nil
+}
+
 func init() {
 	evercore.RegisterStateEventDecoder(StateEventDecoder)
 }
