@@ -2,6 +2,8 @@ package evercore
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -41,6 +43,7 @@ type EventStoreContext interface {
 	NewAggregateId(aggregateType string) (int64, error)
 	NewAggregateIdWithKey(aggregateType string, naturalKey string) (int64, error)
 
+	LoadOrCreateAggregate(agg Aggregate, naturalKey string) (bool, error)
 	CreateAggregateInto(agg Aggregate) error
 	CreateAggregateWithKeyInto(agg Aggregate, naturalKey string) error
 	ApplyEventTo(agg Aggregate, event EventState, time time.Time, reference string) error
@@ -185,6 +188,33 @@ func (etx *EventStoreContextType) CreateAggregateInto(agg Aggregate) error {
 	}
 	agg.SetId(id)
 	return nil
+}
+
+// LoadOrCreateAggregate loads an existing aggregate by natural key if it exists,
+// otherwise creates a new one. Returns true if the aggregate was created, false if loaded.
+func (etx *EventStoreContextType) LoadOrCreateAggregate(agg Aggregate, naturalKey string) (bool, error) {
+	aggregateType := agg.GetAggregateType()
+
+	// Try to load existing aggregate first
+	err := etx.LoadStateByKeyInto(agg, naturalKey)
+	if err == nil {
+		return false, nil
+	}
+
+	// Only continue if the error is ErrNoRows, otherwise we have a real error.
+
+	// TODO: What about the case where we are not using a sql backend?
+	if !errors.Is(err, sql.ErrNoRows) {
+		return false, err
+	}
+
+	// If not found, create new one
+	id, err := etx.NewAggregateIdWithKey(aggregateType, naturalKey)
+	if err != nil {
+		return false, err
+	}
+	agg.SetId(id)
+	return true, nil
 }
 
 // Creates a new aggregate of the specified type with the specified natural key.
