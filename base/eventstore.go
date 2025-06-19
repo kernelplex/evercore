@@ -56,6 +56,7 @@ func InReadonlyContext[T any](ctx context.Context, store *EventStore, exec reado
 func InContext[T any](ctx context.Context, store *EventStore, exec contextFuncReturns[T]) (T, error) {
 
 	transaction, err := store.storageEngine.GetTransactionInfo()
+	defer transaction.Rollback()
 	if err != nil {
 		var result T
 		return result, err
@@ -105,6 +106,7 @@ func (store *EventStore) WithContext(ctx context.Context, exec contextFunc) erro
 	if err != nil {
 		return err
 	}
+	defer transaction.Rollback()
 
 	// Initialize the context
 	context := newEventStoreContextType(store, ctx, transaction)
