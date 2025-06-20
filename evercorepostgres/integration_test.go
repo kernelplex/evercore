@@ -1,20 +1,22 @@
-//go:build integration
+//zzgo:build integration
 
 package evercorepostgres_test
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"os"
-	"path/filepath"
-	"slices"
 	"testing"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/joho/godotenv"
 	"github.com/kernelplex/evercore/enginetests"
 	"github.com/kernelplex/evercore/evercorepostgres"
 	"github.com/pressly/goose/v3"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 //go:embed sql/migrations/*.sql
@@ -22,53 +24,50 @@ var EmbeddedPostgresMigrations embed.FS
 
 const migrationsDir = "sql/migrations"
 
-func maybeLoadDotenv() error {
-	wd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	envFiles := make([]string, 0, 10)
-
-	for {
-		envFilename := filepath.Join(wd, ".env")
-
-		_, statErr := os.Stat(envFilename)
-		if statErr == nil {
-			envFiles = append(envFiles, envFilename)
-		}
-
-		if wd == "/" {
-			break
-		}
-		newWd := filepath.Dir(wd)
-		if newWd == wd {
-			break
-		}
-		wd = newWd
-	}
-
-	// Reverse the found .env files so we load the ones higher in the path first.
-	slices.Reverse(envFiles)
-
-	// Iterate and load the found .env files.
-	for _, envFile := range envFiles {
-		err := godotenv.Load(envFile)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func TestPostgrtesDatastore(t *testing.T) {
-	maybeLoadDotenv()
-	goose.SetBaseFS(EmbeddedPostgresMigrations)
-	connectionString := os.Getenv("PG_TEST_RUNNER_CONNECTION")
-	if connectionString == "" {
-		panic("PG_TEST_RUNNER_CONNECTION environment variable not set.")
+	ctx := context.Background()
+
+	postgresContainer, err := postgres.Run(
+		ctx,
+		"postgres:16-alpine",
+		/*
+			postgres.WithDatabase("test"),
+			postgres.WithUsername("user"),
+			postgres.WithPassword("password"),
+		*/
+
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).WithStartupTimeout(5*time.Second)),
+	)
+	if err != nil {
+		t.Fatalf("failed to start postgres container: %s", err)
+		return
+	}
+	defer func() {
+		err := postgresContainer.Terminate(ctx)
+		if err != nil {
+			t.Fatalf("failed to terminate postgres container: %s", err)
+		}
+	}()
+
+	err = postgresContainer.Start(ctx)
+	if err != nil {
+		t.Fatalf("failed to start postgres container: %s", err)
+		return
 	}
 
-	// TODO: Should use TestContainers
+	connectionString, err := postgresContainer.ConnectionString(ctx)
+	if err != nil {
+		t.Fatalf("failed to get postgres connection string: %s", err)
+		return
+	}
+
+	t.Logf("Using postgres connection string: %s", connectionString)
+
+	// maybeLoadDotenv()
+	goose.SetBaseFS(EmbeddedPostgresMigrations)
+
 	if err := goose.SetDialect("postgres"); err != nil {
 		panic(err)
 	}
@@ -79,16 +78,36 @@ func TestPostgrtesDatastore(t *testing.T) {
 	}
 
 	// Initial up migration - ensure tables there
-	evercorepostgres.MigrateUp(db)
+	t.Log("Clearing any existing migrations.")
+	err = evercorepostgres.MigrateUp(db)
+	if err != nil {
+		t.Errorf("MigrateUp failed: %s", err)
+		return
+	}
 
 	// Clear out migrations for any previous failed runs
-	evercorepostgres.MigrateDown(db)
+	err = evercorepostgres.MigrateDown(db)
+	if err != nil {
+		t.Errorf("MigrateDown failed: %s", err)
+		return
+	}
 
 	// Migrate up again
-	evercorepostgres.MigrateUp(db)
+	t.Log("Running migrations.")
+	err = evercorepostgres.MigrateUp(db)
+	if err != nil {
+		t.Errorf("MigrateDown failed: %s", err)
+		return
+	}
 
 	// Defer cleanup migrations
-	defer evercorepostgres.MigrateDown(db)
+	defer func() {
+		err := evercorepostgres.MigrateDown(db)
+		if err != nil {
+			t.Errorf("MigrateDown failed: %s", err)
+			return
+		}
+	}()
 
 	iut := evercorepostgres.NewPostgresStorageEngine(db)
 	testSuite := evercoreenginetests.NewStorageEngineTestSuite(iut)
