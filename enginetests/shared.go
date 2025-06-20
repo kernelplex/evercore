@@ -108,16 +108,23 @@ func (s *StorageEngineTestSuite) canGetNewAggregateType(t *testing.T) {
 	ctx := context.Background()
 	var err error
 	tx, err := s.iut.GetTransactionInfo()
+	if err != nil {
+		t.Errorf("Failed to get transaction info: %v", err)
+		return
+	}
+
 	defer tx.Commit()
 
 	userAggregateTypeId, err = s.iut.GetAggregateTypeId(tx, ctx, userAggregateType)
 	if err != nil {
 		t.Errorf("Failed to get aggregate type: %v", err)
+		return
 	}
 
 	profileAggregateTypeId, err = s.iut.GetAggregateTypeId(tx, ctx, profileAggregateType)
 	if err != nil {
 		t.Errorf("Failed to get aggregate type: %v", err)
+		return
 	}
 
 	s.aggregateTypeMap[userAggregateType] = userAggregateTypeId

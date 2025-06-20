@@ -1,18 +1,17 @@
-//zzgo:build integration
+//go:build integration
 
 package evercorepostgres_test
 
 import (
-	"context"
 	"database/sql"
 	"embed"
-	"os"
 	"testing"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/kernelplex/evercore/enginetests"
 	"github.com/kernelplex/evercore/evercorepostgres"
+	"github.com/kernelplex/evercore/integrationtests"
 	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -25,17 +24,11 @@ var EmbeddedPostgresMigrations embed.FS
 const migrationsDir = "sql/migrations"
 
 func TestPostgrtesDatastore(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	postgresContainer, err := postgres.Run(
 		ctx,
 		"postgres:16-alpine",
-		/*
-			postgres.WithDatabase("test"),
-			postgres.WithUsername("user"),
-			postgres.WithPassword("password"),
-		*/
-
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).WithStartupTimeout(5*time.Second)),
@@ -77,22 +70,7 @@ func TestPostgrtesDatastore(t *testing.T) {
 		panic(err)
 	}
 
-	// Initial up migration - ensure tables there
-	t.Log("Clearing any existing migrations.")
-	err = evercorepostgres.MigrateUp(db)
-	if err != nil {
-		t.Errorf("MigrateUp failed: %s", err)
-		return
-	}
-
-	// Clear out migrations for any previous failed runs
-	err = evercorepostgres.MigrateDown(db)
-	if err != nil {
-		t.Errorf("MigrateDown failed: %s", err)
-		return
-	}
-
-	// Migrate up again
+	// Run the migrations
 	t.Log("Running migrations.")
 	err = evercorepostgres.MigrateUp(db)
 	if err != nil {
@@ -112,12 +90,24 @@ func TestPostgrtesDatastore(t *testing.T) {
 	iut := evercorepostgres.NewPostgresStorageEngine(db)
 	testSuite := evercoreenginetests.NewStorageEngineTestSuite(iut)
 	testSuite.RunTests(t)
-}
 
-func TestNewPostgresStorageEngineWithConnection(t *testing.T) {
-	connectionString := os.Getenv("PG_TEST_RUNNER_CONNECTION")
-	_, err := evercorepostgres.NewPostgresStorageEngineWithConnection(connectionString)
+	// Clear existing migrations
+	t.Log("Clearing any existing migrations.")
+	err = evercorepostgres.MigrateDown(db)
 	if err != nil {
-		t.Errorf("NewPostgresStorageEngineWithConnection failed: %s", err)
+		t.Errorf("MigrateDown failed: %s", err)
+		return
 	}
+
+	// Run the migrations again
+	t.Log("Running migrations for integration tests.")
+	err = evercorepostgres.MigrateUp(db)
+	if err != nil {
+		t.Errorf("MigrateDown failed: %s", err)
+		return
+	}
+
+	ecTestSuite := integrationtests.NewIntegrationTestSuite(iut)
+	ecTestSuite.RunTests(t)
+
 }

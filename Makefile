@@ -26,17 +26,23 @@ test:
 test-cover: test
 	go tool cover -html=coverage.out
 
+
+# Integration test setup
+.PHONY: integation-test-setup
+integration-test-setup: tool
+	build/evercoregen -output-dir=integrationtests/generated/ -output-pkg=generated
+
 # Integration testing
 .PHONY: integration-test-sqlite 
-integration-test-sqlite:
+integration-test-sqlite: integration-test-setup
 	go test -count=1 -race -tags=integration ./evercoresqlite
 
 .PHONY: integration-test-postgres 
-integration-test-postgres:
+integration-test-postgres: integration-test-setup
 	go test -count=1 -race -tags=integration ./evercorepostgres
 
 .PHONY: integration-test
-integration-test: integration-test-sqlite integration-test-postgres
+integration-test: integration-test-setup integration-test-sqlite integration-test-postgres
 
 # Cleanup
 .PHONY: clean

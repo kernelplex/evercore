@@ -96,7 +96,7 @@ func (t *StateAggregate[T]) ApplySnapshot(snapshot *Snapshot) error {
 
 // CopyFields uses reflection to copy matching fields from e to t.
 // If a pointer field in e is nil, the field is skipped.
-func CopyFields(e, t interface{}) error {
+func CopyFields(e, t any) error {
 	// Get the reflect.Value of e and t.
 	// Note: t must be a pointer so that its fields can be set.
 	eVal := reflect.ValueOf(e)
