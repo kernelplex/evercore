@@ -59,10 +59,6 @@ func (s *PostgresStorageEngine) GetEventTypeId(tx evercore.StorageEngineTxInfo, 
 	if err != nil {
 		return 0, err
 	}
-	err = tx.Commit()
-	if err != nil {
-		return 0, err
-	}
 	return eventTypeId, nil
 }
 
@@ -79,10 +75,6 @@ func (s *PostgresStorageEngine) GetAggregateTypeId(tx evercore.StorageEngineTxIn
 	}
 
 	aggregateTypeId, err = qtx.AddAggregateType(ctx, aggregateTypeName)
-	if err != nil {
-		return 0, err
-	}
-	err = tx.Commit()
 	if err != nil {
 		return 0, err
 	}
