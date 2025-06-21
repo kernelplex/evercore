@@ -1,5 +1,5 @@
 .PHONY: all
-all: test tool
+all: integration-test-setup test tool
 
 .PHONY: tool
 tool:
@@ -26,6 +26,12 @@ test:
 test-cover: test
 	go tool cover -html=coverage.out
 
+.PHONY: integration-test-cover
+integration-test-cover: tool integration-test-setup integration-test
+	go tool cover -html=integration-test-profile.out -o ./tmp/integration-test-coverage.html
+
+
+
 
 # Integration test setup
 .PHONY: integation-test-setup
@@ -42,8 +48,8 @@ integration-test-postgres: integration-test-setup
 	go test -count=1 -race -tags=integration ./evercorepostgres
 
 .PHONY: integration-test
-integration-test: integration-test-setup integration-test-sqlite integration-test-postgres
-
+integration-test: integration-test-setup 
+	go test -count=1 -race -tags=integration -coverprofile=integration-test-profile.out ./...
 # Cleanup
 .PHONY: clean
 clean:

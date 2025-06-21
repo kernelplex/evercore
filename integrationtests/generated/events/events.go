@@ -4,11 +4,13 @@ package generated_events
 const (
 	UserCreatedEventType = "UserCreatedEvent"
 	UserUpdatedEventType = "UserUpdatedEvent"
+	SettingUpdatedEventType = "SettingUpdatedEvent"
 )
 
 var List = []string{
 	UserCreatedEventType,
 	UserUpdatedEventType,
+	SettingUpdatedEventType,
 }
 
 

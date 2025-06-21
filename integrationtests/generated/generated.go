@@ -5,6 +5,7 @@ import (
 	"github.com/kernelplex/evercore/base"
 
 	events "github.com/kernelplex/evercore/integrationtests/generated/events"
+	"github.com/kernelplex/evercore/integrationtests/settings/settingsevents"
 	"github.com/kernelplex/evercore/scratch/user"
 )
 
@@ -36,6 +37,13 @@ func StateEventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventSta
 
 func EventDecoder(ev evercore.SerializedEvent) (evercore.EventState, error) {
 	switch ev.EventType {
+	case events.SettingUpdatedEventType:
+		eventState := settingsevents.SettingUpdatedEvent {}
+		err := evercore.DecodeEventStateTo(ev, &eventState)
+		if err != nil {
+			return nil, err
+		}
+		return &eventState, nil
 	}
 	return nil, nil
 }

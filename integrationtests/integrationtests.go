@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const SettingsAdminEmail = "admin.email"
+
 type IntegrationTestSuite struct {
 	storageEngine  evercore.StorageEngine
 	eventStore     *evercore.EventStore
@@ -37,6 +39,8 @@ func (s *IntegrationTestSuite) RunTests(t *testing.T) {
 	t.Run("Create a new user", s.createNewUser)
 	t.Run("Update existing user", s.updateExistingUser)
 	t.Run("Create user with existing email fails", s.createNewUserWithExistingEmail)
+	t.Run("Load identity system settings", s.loadIdentitySystemSettings)
+	t.Run("Reload identity system settings", s.reloadIdentitySystemSettings)
 }
 
 func (s *IntegrationTestSuite) createNewUser(t *testing.T) {

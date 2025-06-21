@@ -2,10 +2,12 @@
 package generated_aggregates
 
 const (
+	SystemSettingsAggregateType = "SystemSettingsAggregate"
 	UserAggregateType = "UserAggregate"
 )
 
 var List = []string{
+	SystemSettingsAggregateType,
 	UserAggregateType,
 }
 
