@@ -2,7 +2,6 @@ package integrationtests
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -137,12 +136,9 @@ func (s *IntegrationTestSuite) createNewUserWithExistingEmail(t *testing.T) {
 		return nil, err
 	})
 
-	assert.Error(t, err)
+	var storageErr *evercore.StorageEngineError
+	assert.ErrorAs(t, err, &storageErr)
 
-	// TODO: This is brittle, but it's the best we can do for now.
-	// TODO: Update this to use a common error type so we can check for this. It will need to be implemented at the engine level.
-	errText := err.Error()
-	// Lowercase the error text to make it easier to match
-	errText = strings.ToLower(errText)
-	assert.Contains(t, errText, "unique constraint")
+	// Log the type of the error
+	assert.Equal(t, evercore.ErrorTypeConstraintViolation, storageErr.ErrorType)
 }

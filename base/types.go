@@ -58,3 +58,40 @@ type Snapshot struct {
 
 // Slice of snapshots.
 type SnapshotSlice []Snapshot
+
+// StorageEngineError represents an error from the storage engine.
+type StorageEngineError struct {
+	// The underlying error that triggered this error
+	Err error
+	// A human-readable message describing the error
+	Message string
+	// The type of error that occurred
+	ErrorType string
+}
+
+// Error returns the string representation of the error.
+func (e *StorageEngineError) Error() string {
+	if e.Err != nil {
+		return e.Message + ": " + e.Err.Error()
+	}
+	return e.Message
+}
+
+// Unwrap returns the underlying error.
+func (e *StorageEngineError) Unwrap() error {
+	return e.Err
+}
+
+// NewStorageEngineError creates a new StorageEngineError.
+func NewStorageEngineError(message string, err error) *StorageEngineError {
+	return &StorageEngineError{
+		Err:     err,
+		Message: message,
+	}
+}
+
+// Common storage engine error types
+const (
+	ErrorNotFound                = "not_found"
+	ErrorTypeConstraintViolation = "constraint_violation"
+)

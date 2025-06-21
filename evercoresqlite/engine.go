@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/kernelplex/evercore/base"
 )
@@ -12,6 +14,34 @@ const maxKeyLength = 64
 
 type SqliteStorageEngine struct {
 	db *sql.DB
+}
+
+func WrapError(msg string, err error) error {
+	storageErr := evercore.NewStorageEngineError(msg, err)
+
+	// Check for SQLite unique constraint violation
+	if err != nil {
+		// Cehck for contains UNIQUE constraint failed
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			storageErr.ErrorType = evercore.ErrorTypeConstraintViolation
+		} else if errors.Is(err, sql.ErrNoRows) {
+			storageErr.ErrorType = evercore.ErrorNotFound
+		}
+	}
+	return storageErr
+}
+
+func WrapErrorf(msg string, err error, args ...any) error {
+	storageErr := evercore.NewStorageEngineError(fmt.Sprintf(msg, args...), err)
+	// Check for SQLite unique constraint violation
+	if err != nil {
+		if err.Error() == "UNIQUE constraint failed" {
+			storageErr.ErrorType = evercore.ErrorTypeConstraintViolation
+		} else if errors.Is(err, sql.ErrNoRows) {
+			storageErr.ErrorType = evercore.ErrorNotFound
+		}
+	}
+	return storageErr
 }
 
 // Creates a new Sqlite3 backed storage engine.
@@ -25,7 +55,7 @@ func NewSqliteStorageEngine(db *sql.DB) *SqliteStorageEngine {
 func NewSqliteStorageEngineWithConnection(connectionString string) (*SqliteStorageEngine, error) {
 	db, err := sql.Open("sqlite3", connectionString)
 	if err != nil {
-		return nil, err
+		return nil, WrapError("failed to begin transaction", err)
 	}
 	return &SqliteStorageEngine{
 		db: db,
@@ -39,7 +69,7 @@ func (stor *SqliteStorageEngine) GetMaxKeyLength() int {
 func (s *SqliteStorageEngine) GetTransactionInfo() (evercore.StorageEngineTxInfo, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return nil, err
+		return nil, WrapError("failed to get snapshot for aggregate", err)
 	}
 	return tx, nil
 }
@@ -50,7 +80,7 @@ func (s *SqliteStorageEngine) GetEventTypeId(tx evercore.StorageEngineTxInfo, ct
 
 	eventTypeId, err := qtx.GetEventTypeIdByName(ctx, name)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return 0, err
+		return 0, WrapError("failed to get event type id", err)
 	}
 
 	if eventTypeId != 0 {
@@ -59,7 +89,7 @@ func (s *SqliteStorageEngine) GetEventTypeId(tx evercore.StorageEngineTxInfo, ct
 
 	eventTypeId, err = qtx.AddEventType(ctx, name)
 	if err != nil {
-		return 0, err
+		return 0, WrapError("failed to add event type", err)
 	}
 	return eventTypeId, nil
 }
@@ -69,7 +99,7 @@ func (s *SqliteStorageEngine) GetAggregateTypeId(tx evercore.StorageEngineTxInfo
 	qtx := New(db)
 	aggregateTypeId, err := qtx.GetAggregateTypeIdByName(ctx, aggregateTypeName)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return 0, err
+		return 0, WrapError("failed to get aggregate type id", err)
 	}
 
 	if aggregateTypeId != 0 {
@@ -78,7 +108,7 @@ func (s *SqliteStorageEngine) GetAggregateTypeId(tx evercore.StorageEngineTxInfo
 
 	aggregateTypeId, err = qtx.AddAggregateType(ctx, aggregateTypeName)
 	if err != nil {
-		return 0, err
+		return 0, WrapError("failed to add aggregate type", err)
 	}
 	return aggregateTypeId, nil
 }
@@ -94,7 +124,10 @@ func (s *SqliteStorageEngine) NewAggregate(tx evercore.StorageEngineTxInfo, ctx 
 	db := s.maybeWrapTx(tx)
 	queries := New(db)
 	id, err := queries.AddAggregate(ctx, aggregateTypeId)
-	return id, err
+	if err != nil {
+		return 0, WrapError("failed to create new aggregate", err)
+	}
+	return id, nil
 }
 
 func (s *SqliteStorageEngine) NewAggregateWithKey(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
@@ -109,7 +142,10 @@ func (s *SqliteStorageEngine) NewAggregateWithKey(tx evercore.StorageEngineTxInf
 		NaturalKey:      sql.NullString{String: naturalKey, Valid: true},
 	}
 	id, err := queries.AddAggregateWithNaturalKey(ctx, params)
-	return id, err
+	if err != nil {
+		return 0, WrapError("failed to create aggregate with key", err)
+	}
+	return id, nil
 }
 
 func (s *SqliteStorageEngine) GetAggregateById(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, aggregateId int64) (int64, *string, error) {
@@ -121,7 +157,7 @@ func (s *SqliteStorageEngine) GetAggregateById(tx evercore.StorageEngineTxInfo, 
 	}
 	result, err := queries.GetAggregateById(ctx, params)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, WrapError("failed to get aggregate by id", err)
 	}
 
 	var key *string
@@ -142,7 +178,7 @@ func (s *SqliteStorageEngine) GetAggregateByKey(tx evercore.StorageEngineTxInfo,
 	}
 	id, err := queries.GetAggregateIdByNaturalKey(ctx, params)
 	if err != nil {
-		return 0, err
+		return 0, WrapError("failed to get aggregate by key", err)
 	}
 
 	return id, nil
@@ -158,7 +194,7 @@ func (s *SqliteStorageEngine) GetEventTypes(tx evercore.StorageEngineTxInfo, ctx
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, WrapError("failed to get events for aggregate", err)
 	}
 
 	var localEventTypes = make([]evercore.IdNamePair, len(eventTypes))
@@ -181,7 +217,7 @@ func (s *SqliteStorageEngine) GetAggregateTypes(tx evercore.StorageEngineTxInfo,
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, WrapError("failed to get snapshot for aggregate", err)
 	}
 
 	var localAggregateTypes = make([]evercore.IdNamePair, len(aggregateTypes))
@@ -206,7 +242,7 @@ func (s *SqliteStorageEngine) GetSnapshotForAggregate(tx evercore.StorageEngineT
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, WrapError("failed to get events for aggregate", err)
 	}
 
 	snapshot := evercore.Snapshot{
@@ -271,7 +307,7 @@ func (s *SqliteStorageEngine) WriteState(tx evercore.StorageEngineTxInfo, ctx co
 
 		err := queries.AddEvent(ctx, addEventParams)
 		if err != nil {
-			return err
+			return WrapError("failed to add event", err)
 		}
 	}
 
@@ -283,7 +319,7 @@ func (s *SqliteStorageEngine) WriteState(tx evercore.StorageEngineTxInfo, ctx co
 		}
 		err := queries.AddSnapshot(ctx, addSnapshotParams)
 		if err != nil {
-			return err
+			return WrapError("failed to add snapshot", err)
 		}
 	}
 

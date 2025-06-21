@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/kernelplex/evercore/base"
 )
@@ -20,11 +22,37 @@ func NewPostgresStorageEngine(db *sql.DB) *PostgresStorageEngine {
 	}
 }
 
+func WrapError(msg string, err error) error {
+	storageErr := evercore.NewStorageEngineError(msg, err)
+
+	// Check for PostgreSQL unique constraint violation
+	if err != nil {
+		// Check for contains duplicate key value violates unique constraint
+		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+			storageErr.ErrorType = evercore.ErrorTypeConstraintViolation
+		} else if errors.Is(err, sql.ErrNoRows) {
+			storageErr.ErrorType = evercore.ErrorNotFound
+		}
+	}
+	return storageErr
+}
+
+func WrapErrorf(msg string, err error, args ...any) error {
+	storageErr := evercore.NewStorageEngineError(fmt.Sprintf(msg, args...), err)
+	// Check for PostgreSQL unique constraint violation
+	if err != nil {
+		if err.Error() == "pq: duplicate key value violates unique constraint" {
+			storageErr.ErrorType = evercore.ErrorTypeConstraintViolation
+		}
+	}
+	return storageErr
+}
+
 // Creates a new Postgres backed storage engine.
 func NewPostgresStorageEngineWithConnection(connectionString string) (*PostgresStorageEngine, error) {
 	db, err := sql.Open("pgx", connectionString)
 	if err != nil {
-		return nil, err
+		return nil, evercore.NewStorageEngineError("failed to get aggregate by id", err)
 	}
 	return &PostgresStorageEngine{
 		db: db,
@@ -34,7 +62,7 @@ func NewPostgresStorageEngineWithConnection(connectionString string) (*PostgresS
 func (s *PostgresStorageEngine) GetTransactionInfo() (evercore.StorageEngineTxInfo, error) {
 	tx, err := s.db.Begin()
 	if err != nil {
-		return nil, err
+		return nil, WrapError("failed to get snapshot for aggregate", err)
 	}
 	return tx, nil
 }
@@ -48,7 +76,7 @@ func (s *PostgresStorageEngine) GetEventTypeId(tx evercore.StorageEngineTxInfo, 
 	qtx := New(db)
 	eventTypeId, err := qtx.GetEventTypeIdByName(ctx, name)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return 0, err
+		return 0, WrapError("failed to get event type id", err)
 	}
 
 	if eventTypeId != 0 {
@@ -57,7 +85,7 @@ func (s *PostgresStorageEngine) GetEventTypeId(tx evercore.StorageEngineTxInfo, 
 
 	eventTypeId, err = qtx.AddEventType(ctx, name)
 	if err != nil {
-		return 0, err
+		return 0, WrapError("failed to add event type", err)
 	}
 	return eventTypeId, nil
 }
@@ -67,7 +95,7 @@ func (s *PostgresStorageEngine) GetAggregateTypeId(tx evercore.StorageEngineTxIn
 	qtx := New(db)
 	aggregateTypeId, err := qtx.GetAggregateTypeIdByName(ctx, aggregateTypeName)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return 0, err
+		return 0, WrapError("failed to get aggregate type id", err)
 	}
 
 	if aggregateTypeId != 0 {
@@ -76,7 +104,7 @@ func (s *PostgresStorageEngine) GetAggregateTypeId(tx evercore.StorageEngineTxIn
 
 	aggregateTypeId, err = qtx.AddAggregateType(ctx, aggregateTypeName)
 	if err != nil {
-		return 0, err
+		return 0, WrapError("failed to add aggregate type", err)
 	}
 	return aggregateTypeId, nil
 }
@@ -85,7 +113,10 @@ func (s *PostgresStorageEngine) NewAggregate(tx evercore.StorageEngineTxInfo, ct
 	db := tx.(*sql.Tx)
 	queries := New(db)
 	id, err := queries.AddAggregate(ctx, aggregateTypeId)
-	return id, err
+	if err != nil {
+		return 0, WrapError("failed to create new aggregate", err)
+	}
+	return id, nil
 }
 
 func (s *PostgresStorageEngine) NewAggregateWithKey(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
@@ -101,7 +132,10 @@ func (s *PostgresStorageEngine) NewAggregateWithKey(tx evercore.StorageEngineTxI
 		NaturalKey:      sql.NullString{String: naturalKey, Valid: true},
 	}
 	id, err := queries.AddAggregateWithNaturalKey(ctx, params)
-	return id, err
+	if err != nil {
+		return 0, WrapError("failed to create aggregate with key", err)
+	}
+	return id, nil
 }
 
 func (s *PostgresStorageEngine) GetAggregateById(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, aggregateId int64) (int64, *string, error) {
@@ -113,7 +147,7 @@ func (s *PostgresStorageEngine) GetAggregateById(tx evercore.StorageEngineTxInfo
 	}
 	result, err := queries.GetAggregateById(ctx, params)
 	if err != nil {
-		return 0, nil, err
+		return 0, nil, WrapError("failed to get aggregate by id", err)
 	}
 
 	var key *string
@@ -135,7 +169,7 @@ func (s *PostgresStorageEngine) GetAggregateByKey(tx evercore.StorageEngineTxInf
 	}
 	id, err := queries.GetAggregateIdByNaturalKey(ctx, params)
 	if err != nil {
-		return 0, err
+		return 0, WrapError("failed to get aggregate by key", err)
 	}
 
 	return id, nil
@@ -151,7 +185,7 @@ func (s *PostgresStorageEngine) GetAggregateTypes(tx evercore.StorageEngineTxInf
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, WrapError("failed to get events for aggregate", err)
 	}
 
 	var localAggregateTypes = make([]evercore.IdNamePair, len(aggregateTypes))
@@ -174,7 +208,7 @@ func (s *PostgresStorageEngine) GetEventTypes(tx evercore.StorageEngineTxInfo, c
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, WrapError("failed to get snapshot for aggregate", err)
 	}
 
 	var localEventTypes = make([]evercore.IdNamePair, len(eventTypes))
@@ -199,7 +233,7 @@ func (s *PostgresStorageEngine) GetSnapshotForAggregate(tx evercore.StorageEngin
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, WrapError("failed to get events for aggregate", err)
 	}
 
 	snapshot := evercore.Snapshot{
@@ -264,7 +298,7 @@ func (s *PostgresStorageEngine) WriteState(tx evercore.StorageEngineTxInfo, ctx 
 
 		err := queries.AddEvent(ctx, addEventParams)
 		if err != nil {
-			return err
+			return WrapError("failed to add event", err)
 		}
 	}
 
@@ -276,7 +310,7 @@ func (s *PostgresStorageEngine) WriteState(tx evercore.StorageEngineTxInfo, ctx 
 		}
 		err := queries.AddSnapshot(ctx, addSnapshotParams)
 		if err != nil {
-			return err
+			return WrapError("failed to add snapshot", err)
 		}
 	}
 
