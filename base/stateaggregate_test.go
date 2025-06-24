@@ -138,7 +138,7 @@ func TestApplyEventStateForNonStateEvents(t *testing.T) {
 	aggregate.State.LastName = "Harvey"
 	aggregate.State.Active = false
 
-	aggregate.ApplyOtherEvents = func(eventState EventState, eventTime time.Time, reference string) error {
+	aggregate.HandleOtherEvents = func(eventState EventState, eventTime time.Time, reference string) error {
 		switch event := eventState.(type) {
 		case SetActiveEvent:
 			aggregate.State.Active = event.Active
