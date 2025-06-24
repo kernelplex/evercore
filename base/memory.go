@@ -120,6 +120,28 @@ func (store *MemoryStorageEngine) GetAggregateById(tx StorageEngineTxInfo, ctx c
 	return aggregateId, aggregateKey, nil
 }
 
+func (store *MemoryStorageEngine) GetOrCreateAggregateByKey(tx StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
+	if len(naturalKey) > maxKeyLength {
+		return 0, ErrorKeyExceedsMaximumLength
+	}
+
+	// Try to get existing aggregate first
+	aggregateId, exists := store.Aggregates[naturalKey]
+	if exists {
+		if store.AggregateToTypeId[aggregateId] != aggregateTypeId {
+			return 0, fmt.Errorf("aggregate exists but has different type")
+		}
+		return aggregateId, nil
+	}
+
+	// Create new aggregate if not found
+	store.CountAggregates++
+	store.Aggregates[naturalKey] = store.CountAggregates
+	store.AggregateToTypeId[store.CountAggregates] = aggregateTypeId
+	store.AggregateInv[store.CountAggregates] = &naturalKey
+	return store.CountAggregates, nil
+}
+
 func (store *MemoryStorageEngine) GetAggregateByKey(tx StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
 	aggregateId, exists := store.Aggregates[naturalKey]
 	if !exists {

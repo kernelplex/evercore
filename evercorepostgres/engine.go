@@ -175,6 +175,40 @@ func (s *PostgresStorageEngine) GetAggregateByKey(tx evercore.StorageEngineTxInf
 	return id, nil
 }
 
+func (s *PostgresStorageEngine) GetOrCreateAggregateByKey(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
+	if len(naturalKey) > maxKeyLength {
+		return 0, evercore.ErrorKeyExceedsMaximumLength
+	}
+
+	db := tx.(*sql.Tx)
+	queries := New(db)
+
+	// First try to get existing aggregate
+	params := GetAggregateIdByNaturalKeyParams{
+		AggregateTypeID: aggregateTypeId,
+		NaturalKey:      sql.NullString{String: naturalKey, Valid: true},
+	}
+	aggregateId, err := queries.GetAggregateIdByNaturalKey(ctx, params)
+	if err == nil {
+		return aggregateId, nil
+	}
+
+	// If not found, create new aggregate
+	if errors.Is(err, sql.ErrNoRows) {
+		createParams := AddAggregateWithNaturalKeyParams{
+			AggregateTypeID: aggregateTypeId,
+			NaturalKey:      sql.NullString{String: naturalKey, Valid: true},
+		}
+		aggregateId, err = queries.AddAggregateWithNaturalKey(ctx, createParams)
+		if err != nil {
+			return 0, WrapError("failed to create aggregate with key", err)
+		}
+		return aggregateId, nil
+	}
+
+	return 0, WrapError("failed to get or create aggregate by key", err)
+}
+
 func (s *PostgresStorageEngine) GetAggregateTypes(tx evercore.StorageEngineTxInfo, ctx context.Context) ([]evercore.IdNamePair, error) {
 	db := tx.(*sql.Tx)
 	queries := New(db)

@@ -34,6 +34,15 @@ type StorageEngine interface {
 	// Gets the aggregate id corresponding to the type and natural key.
 	GetAggregateByKey(tx StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error)
 
+	// Gets or creates an aggregate id for the given type and natural key.
+	// If an aggregate with the given natural key already exists, returns its id.
+	// Otherwise creates a new aggregate with the key and returns its new id.
+	// Returns error if:
+	// - The natural key exceeds maximum length (ErrorKeyExceedsMaximumLength)
+	// - The aggregate type doesn't exist
+	// - There are database errors
+	GetOrCreateAggregateByKey(tx StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error)
+
 	// Loads all the aggregate types.
 	GetAggregateTypes(tx StorageEngineTxInfo, ctx context.Context) ([]IdNamePair, error)
 
