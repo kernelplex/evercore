@@ -2,8 +2,6 @@ package evercore
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"time"
 )
 
@@ -195,28 +193,39 @@ func (etx *EventStoreContextType) CreateAggregateInto(agg Aggregate) error {
 func (etx *EventStoreContextType) LoadOrCreateAggregate(agg Aggregate, naturalKey string) (bool, error) {
 	aggregateType := agg.GetAggregateType()
 
-	// TODO:: Maybe push this to the storage engine rather than check and add?
-
-	// Try to load existing aggregate first
-	err := etx.LoadStateByKeyInto(agg, naturalKey)
-	if err == nil {
-		return false, nil
-	}
-
-	// Only continue if the error is ErrNoRows, otherwise we have a real error.
-
-	// TODO: What about the case where we are not using a sql backend?
-	if !errors.Is(err, sql.ErrNoRows) {
-		return false, err
-	}
-
-	// If not found, create new one
-	id, err := etx.NewAggregateIdWithKey(aggregateType, naturalKey)
+	created, aggregateId, err := etx.store.getOrCreateAggregateByKey(etx, aggregateType, naturalKey)
 	if err != nil {
 		return false, err
 	}
-	agg.SetId(id)
-	return true, nil
+
+	if created {
+		agg.SetId(aggregateId)
+		return true, nil
+	}
+
+	err = etx.LoadStateByKeyInto(agg, naturalKey)
+	if err != nil {
+		return false, err
+	}
+
+	return false, nil
+	/*
+
+		// Only continue if the error is ErrNoRows, otherwise we have a real error.
+
+		// TODO: What about the case where we are not using a sql backend?
+		if !errors.Is(err, sql.ErrNoRows) {
+			return false, err
+		}
+
+		// If not found, create new one
+		id, err := etx.NewAggregateIdWithKey(aggregateType, naturalKey)
+		if err != nil {
+			return false, err
+		}
+		agg.SetId(id)
+		return true, nil
+	*/
 }
 
 // Creates a new aggregate of the specified type with the specified natural key.

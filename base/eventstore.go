@@ -22,6 +22,7 @@ type ContextOwner interface {
 	newAggregateWithKey(stx *EventStoreContextType, aggregateType string, naturalKey string) (int64, error)
 	getAggregateIdByKey(stx *EventStoreContextType, aggregateType string, naturalKey string) (int64, error)
 	getAggregateById(stx *EventStoreContextType, aggregateType string, aggregateId int64) (int64, *string, error)
+	getOrCreateAggregateByKey(stx *EventStoreContextType, aggregateType string, naturalKey string) (bool, int64, error)
 	loadSnapshot(stx *EventStoreContextType, aggregateId int64) (*Snapshot, error)
 	loadEvents(stx *EventStoreContextType, aggregateId int64, afterSequence int64) (EventSlice, error)
 }
@@ -321,6 +322,16 @@ func (store *EventStore) getAggregateById(stx *EventStoreContextType, aggregateT
 
 	id, key, err := store.storageEngine.GetAggregateById(stx.Transaction, stx.context, aggregateTypeId, aggregateId)
 	return id, key, err
+}
+
+func (store *EventStore) getOrCreateAggregateByKey(stx *EventStoreContextType, aggregateTypeName string, naturalKey string) (bool, int64, error) {
+
+	aggregateTypeId, err := store.getAggregateTypeId(stx.Transaction, stx.context, aggregateTypeName)
+	if err != nil {
+		return false, 0, err
+	}
+
+	return store.storageEngine.GetOrCreateAggregateByKey(stx.Transaction, stx.context, aggregateTypeId, naturalKey)
 }
 
 // Retrieves the most recent snapshot for the aggregate.
