@@ -7,12 +7,37 @@ import (
 	"time"
 )
 
+func (e ErrorMessage) Error() string {
+	return string(e)
+}
+
+var ErrEventStateIsNotAStateEvent = ErrorMessage("Event state is not a StateEvent and there is no Apply method.")
+
+type ApplyFunc func(eventState EventState, eventTime time.Time, reference string) error
+
 // StateAggregate can be used for aggregates that contain simple state.
+// It provides common aggregate functionality and handles state management.
+//
+// HandleOtherEvents is an optional function that can be set to handle events
+// that don't implement iStateEvent. When an event is applied that isn't a StateEvent,
+// this function will be called if set. If not set, such events will return ErrEventStateIsNotAStateEvent.
+//
+// Example usage:
+//   aggregate.HandleOtherEvents = func(eventState EventState, eventTime time.Time, reference string) error {
+//       switch event := eventState.(type) {
+//       case SetActiveEvent:
+//           aggregate.State.Active = event.Active
+//           return nil
+//       default:
+//           return fmt.Errorf("unknown event type %s", event.GetEventType())
+//       }
+//   }
 type StateAggregate[T any] struct {
-	Id            int64
-	State         T
-	Sequence      int64
-	aggregateType string
+	Id                int64
+	State             T
+	Sequence          int64
+	aggregateType     string
+	HandleOtherEvents ApplyFunc
 }
 
 // EventDecoder is a function that decodes an event into an EventState.
@@ -61,16 +86,22 @@ func (t *StateAggregate[T]) GetSnapshotFrequency() int64 {
 	return 10
 }
 
+type ErrorMessage string
+
 // ApplyEventState applies an event state to the aggregate
 func (t *StateAggregate[T]) ApplyEventState(eventState EventState, eventTime time.Time, reference string) error {
 	var stateValue any
 	value, ok := eventState.(iStateEvent)
 	if ok {
 		stateValue = value.GetState()
-	} else {
-		stateValue = eventState
+		return CopyFields(stateValue, &t.State)
 	}
-	return CopyFields(stateValue, &t.State)
+
+	if t.HandleOtherEvents != nil {
+
+		return t.HandleOtherEvents(eventState, eventTime, reference)
+	}
+	return ErrEventStateIsNotAStateEvent
 }
 
 // GetSnapshotState gets the snapshot state
