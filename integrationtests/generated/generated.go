@@ -9,7 +9,7 @@ import (
 	"github.com/kernelplex/evercore/scratch/user"
 )
 
-func StateEventDecoder(_ string, ev evercore.SerializedEvent) (evercore.EventState, error) {
+func StateEventDecoder(ev evercore.SerializedEvent) (evercore.EventState, error) {
 	switch ev.EventType {
 
 	// ================================================== 
@@ -49,5 +49,7 @@ func EventDecoder(ev evercore.SerializedEvent) (evercore.EventState, error) {
 }
 
 func init() {
-	evercore.RegisterStateEventDecoder(StateEventDecoder)
+	evercore.RegisterEventDecoder(
+		StateEventDecoder,
+		EventDecoder)
 }

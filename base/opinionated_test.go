@@ -33,6 +33,10 @@ type UserAggregate struct {
 	Sequence int64
 }
 
+func init() {
+	evercore.RegisterEventDecoder(DecodeEvent)
+}
+
 func (agg *UserAggregate) SetId(id int64) {
 	agg.Id = id
 }
@@ -110,7 +114,7 @@ func (ev *UserCreatedEvent) Deserialize(serialized string) error {
 	return err
 }
 
-func (agg *UserAggregate) DecodeEvent(event evercore.SerializedEvent) (evercore.EventState, error) {
+func DecodeEvent(event evercore.SerializedEvent) (evercore.EventState, error) {
 	switch event.EventType {
 	case EventCreated:
 		state := UserCreatedEvent{}

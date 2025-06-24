@@ -251,7 +251,7 @@ func applyState(state *AggregateState, agg Aggregate) error {
 	}
 
 	for _, event := range state.Events {
-		decoded, err := agg.DecodeEvent(event)
+		_, decoded, err := DecodeEvent(event)
 		if err != nil {
 			return err
 		}
