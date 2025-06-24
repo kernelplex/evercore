@@ -195,6 +195,8 @@ func (etx *EventStoreContextType) CreateAggregateInto(agg Aggregate) error {
 func (etx *EventStoreContextType) LoadOrCreateAggregate(agg Aggregate, naturalKey string) (bool, error) {
 	aggregateType := agg.GetAggregateType()
 
+	// TODO:: Maybe push this to the storage engine rather than check and add?
+
 	// Try to load existing aggregate first
 	err := etx.LoadStateByKeyInto(agg, naturalKey)
 	if err == nil {

@@ -34,3 +34,4 @@ scratch/
 
 tmp/
 build/
+.opencode/

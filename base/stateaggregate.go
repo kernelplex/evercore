@@ -112,7 +112,7 @@ func CopyFields(e, t any) error {
 	}
 
 	// Iterate over all fields in e
-	for i := 0; i < eVal.NumField(); i++ {
+	for i := range eVal.NumField() {
 		// Get the field and its type info from e.
 		eField := eVal.Field(i)
 		fieldInfo := eVal.Type().Field(i)
