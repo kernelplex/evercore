@@ -6,7 +6,7 @@ import (
 
 	events "github.com/kernelplex/evercore/integrationtests/generated/events"
 	"github.com/kernelplex/evercore/integrationtests/settings/settingsevents"
-	"github.com/kernelplex/evercore/scratch/user"
+	"github.com/kernelplex/evercore/integrationtests/user"
 )
 
 func StateEventDecoder(ev evercore.SerializedEvent) (evercore.EventState, error) {
