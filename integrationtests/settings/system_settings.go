@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/kernelplex/evercore/base"
-	"github.com/kernelplex/evercore/integrationtests/generated"
 	"github.com/kernelplex/evercore/integrationtests/settings/settingsevents"
 )
 
@@ -58,11 +57,6 @@ func (s *SystemSettingsAggregate) GetSnapshotState() (*string, error) {
 	}
 	state := string(data)
 	return &state, nil
-}
-
-func (s *SystemSettingsAggregate) DecodeEvent(ev evercore.SerializedEvent) (evercore.EventState, error) {
-	event, err := generated.EventDecoder(ev)
-	return event, err
 }
 
 func (s *SystemSettingsAggregate) ApplyEventState(eventState evercore.EventState, eventTime time.Time, reference string) error {

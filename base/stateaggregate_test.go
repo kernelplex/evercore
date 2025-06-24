@@ -11,11 +11,28 @@ import (
 type SampleState struct {
 	FirstName string
 	LastName  string
+	Active    bool
 }
 
 type SampleCreatedEvent struct {
 	FirstName *string
 	LastName  *string
+}
+
+type SetActiveEvent struct {
+	Active bool
+}
+
+func NewActiveEvent(active bool) EventState {
+	return SetActiveEvent{Active: active}
+}
+
+func (t SetActiveEvent) GetEventType() string {
+	return "SetActiveEvent"
+}
+
+func (t SetActiveEvent) Serialize() string {
+	return SerializeEvent(t)
 }
 
 func SerializeEvent(ev any) string {
@@ -51,10 +68,10 @@ func TestApplyEventStateSetsFields(t *testing.T) {
 	aggregate := SampleStateAggregate{}
 	var firstName = "John"
 	var lastName = "Smith"
-	event := SampleCreatedEvent{
+	event := NewStateEvent(SampleCreatedEvent{
 		FirstName: &firstName,
 		LastName:  &lastName,
-	}
+	})
 	aggregate.ApplyEventState(event, time.Now(), "")
 	if aggregate.State.FirstName != firstName {
 		t.Errorf("Expected name to be %s, got %s", firstName, aggregate.State.FirstName)
@@ -70,10 +87,10 @@ func TestApplyEventStateIgnoresNilPointerFields(t *testing.T) {
 	aggregate.State.FirstName = "Timothy"
 	aggregate.State.LastName = "Harvey"
 	var firstName = "John"
-	event := SampleCreatedEvent{
+	event := NewStateEvent(SampleCreatedEvent{
 		FirstName: &firstName,
 		LastName:  nil,
-	}
+	})
 	aggregate.ApplyEventState(event, time.Now(), "")
 	if aggregate.State.FirstName != firstName {
 		t.Errorf("Expected name to be %s, got %s", firstName, aggregate.State.FirstName)
@@ -94,10 +111,10 @@ func TestEventStoreContextLoadsState(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		event := SampleCreatedEvent{
+		event := NewStateEvent(SampleCreatedEvent{
 			FirstName: &firstName,
 			LastName:  &lastName,
-		}
+		})
 		etx.ApplyEventTo(&state, event, time.Now().UTC(), "")
 		return nil
 	})
@@ -112,4 +129,63 @@ func TestEventStoreContextLoadsState(t *testing.T) {
 	if err != nil {
 		t.Errorf("Event store context failed: %v", err)
 	}
+}
+
+func TestApplyEventStateForNonStateEvents(t *testing.T) {
+
+	aggregate := SampleStateAggregate{}
+	aggregate.State.FirstName = "Timothy"
+	aggregate.State.LastName = "Harvey"
+	aggregate.State.Active = false
+
+	aggregate.HandleOtherEvents = func(eventState EventState, eventTime time.Time, reference string) error {
+		switch event := eventState.(type) {
+		case SetActiveEvent:
+			aggregate.State.Active = event.Active
+			return nil
+		default:
+			return fmt.Errorf("unknown event type %s", event.GetEventType())
+		}
+	}
+
+	event := NewActiveEvent(true)
+
+	err := aggregate.ApplyEventState(event, time.Now(), "")
+	if err != nil {
+		t.Errorf("ApplyEventState failed: %v", err)
+	}
+	if aggregate.State.Active != true {
+		t.Errorf("Expected active to be true, got %v", aggregate.State.Active)
+	}
+
+	event = NewActiveEvent(false)
+	aggregate.ApplyEventState(event, time.Now(), "")
+	if aggregate.State.Active != false {
+		t.Errorf("Expected active to be false, got %v", aggregate.State.Active)
+	}
+}
+
+func TestApplyEventStateForNonStateEventsNoApplyMethod(t *testing.T) {
+
+	aggregate := SampleStateAggregate{}
+	aggregate.State.FirstName = "Timothy"
+	aggregate.State.LastName = "Harvey"
+	aggregate.State.Active = false
+
+	event := NewActiveEvent(true)
+
+	err := aggregate.ApplyEventState(event, time.Now(), "")
+	// This should fail.
+	if err == nil {
+		t.Errorf("ApplyEventState should have failed.")
+	}
+
+	if err.Error() != ErrEventStateIsNotAStateEvent.Error() {
+		t.Errorf("Expected error message to be %s, got %s", ErrEventStateIsNotAStateEvent.Error(), err.Error())
+	}
+
+	if aggregate.State.Active != false {
+		t.Errorf("Expected active to be false, got %v", aggregate.State.Active)
+	}
+
 }

@@ -7,23 +7,72 @@ import (
 	"time"
 )
 
+func (e ErrorMessage) Error() string {
+	return string(e)
+}
+
+var ErrEventStateIsNotAStateEvent = ErrorMessage("Event state is not a StateEvent and there is no Apply method.")
+
+type ApplyFunc func(eventState EventState, eventTime time.Time, reference string) error
+
 // StateAggregate can be used for aggregates that contain simple state.
+// It provides common aggregate functionality and handles state management.
+//
+// HandleOtherEvents is an optional function that can be set to handle events
+// that don't implement iStateEvent. When an event is applied that isn't a StateEvent,
+// this function will be called if set. If not set, such events will return ErrEventStateIsNotAStateEvent.
+//
+// Example usage:
+//
+//	aggregate.HandleOtherEvents = func(eventState EventState, eventTime time.Time, reference string) error {
+//	    switch event := eventState.(type) {
+//	    case SetActiveEvent:
+//	        aggregate.State.Active = event.Active
+//	        return nil
+//	    default:
+//	        return fmt.Errorf("unknown event type %s", event.GetEventType())
+//	    }
+//	}
 type StateAggregate[T any] struct {
-	Id            int64
-	State         T
-	Sequence      int64
-	aggregateType string
+	Id                int64
+	State             T
+	Sequence          int64
+	aggregateType     string
+	HandleOtherEvents ApplyFunc
 }
 
 // EventDecoder is a function that decodes an event into an EventState.
-type EventDecoder func(aggregateType string, ev SerializedEvent) (EventState, error)
+type EventDecoder func(ev SerializedEvent) (EventState, error)
 
 var eventDecoders []EventDecoder
 
-// RegisterStateEventDecoder sets the EventDecoder for StateAggregate - the function should be able to
+// RegisterEventDecoder sets the EventDecoder for StateAggregate - the function should be able to
 // decode all events for any aggregate using StateAggregate.
-func RegisterStateEventDecoder(decoder EventDecoder) {
-	eventDecoders = append(eventDecoders, decoder)
+func RegisterEventDecoder(decoders ...EventDecoder) {
+	for _, decoder := range decoders {
+		eventDecoders = append(eventDecoders, decoder)
+	}
+}
+
+// DecodeEventStateTo decodes an event into an EventState.
+func DecodeEvent(ev SerializedEvent) (bool, EventState, error) {
+	if len(eventDecoders) == 0 {
+		panic("No EventDecoders set")
+	}
+
+	for _, decoder := range eventDecoders {
+		eventState, err := decoder(ev)
+		if err != nil {
+			return false, nil, err
+		}
+		if eventState != nil {
+			if _, ok := eventState.(iStateEvent); !ok {
+				return false, eventState, nil
+			}
+			return true, eventState, nil
+		}
+	}
+	return false, nil, fmt.Errorf("no decoder could handle event type %s", ev.EventType)
 }
 
 // Implement Aggregate interface for StateAggregate
@@ -61,16 +110,22 @@ func (t *StateAggregate[T]) GetSnapshotFrequency() int64 {
 	return 10
 }
 
+type ErrorMessage string
+
 // ApplyEventState applies an event state to the aggregate
 func (t *StateAggregate[T]) ApplyEventState(eventState EventState, eventTime time.Time, reference string) error {
 	var stateValue any
 	value, ok := eventState.(iStateEvent)
 	if ok {
 		stateValue = value.GetState()
-	} else {
-		stateValue = eventState
+		return CopyFields(stateValue, &t.State)
 	}
-	return CopyFields(stateValue, &t.State)
+
+	if t.HandleOtherEvents != nil {
+
+		return t.HandleOtherEvents(eventState, eventTime, reference)
+	}
+	return ErrEventStateIsNotAStateEvent
 }
 
 // GetSnapshotState gets the snapshot state
@@ -155,7 +210,7 @@ func (t *StateAggregate[T]) DecodeEvent(ev SerializedEvent) (EventState, error) 
 	}
 
 	for _, decoder := range eventDecoders {
-		eventState, err := decoder(t.GetAggregateType(), ev)
+		eventState, err := decoder(ev)
 		if err != nil {
 			return nil, err
 		}
