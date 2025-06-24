@@ -184,9 +184,9 @@ func (s *SqliteStorageEngine) GetAggregateByKey(tx evercore.StorageEngineTxInfo,
 	return id, nil
 }
 
-func (s *SqliteStorageEngine) GetOrCreateAggregateByKey(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (int64, error) {
+func (s *SqliteStorageEngine) GetOrCreateAggregateByKey(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (bool, int64, error) {
 	if len(naturalKey) > maxKeyLength {
-		return 0, evercore.ErrorKeyExceedsMaximumLength
+		return false, 0, evercore.ErrorKeyExceedsMaximumLength
 	}
 
 	db := s.maybeWrapTx(tx)
@@ -199,7 +199,7 @@ func (s *SqliteStorageEngine) GetOrCreateAggregateByKey(tx evercore.StorageEngin
 	}
 	aggregateId, err := queries.GetAggregateIdByNaturalKey(ctx, params)
 	if err == nil {
-		return aggregateId, nil
+		return false, aggregateId, nil
 	}
 
 	// If not found, create new aggregate
@@ -210,12 +210,12 @@ func (s *SqliteStorageEngine) GetOrCreateAggregateByKey(tx evercore.StorageEngin
 		}
 		aggregateId, err = queries.AddAggregateWithNaturalKey(ctx, createParams)
 		if err != nil {
-			return 0, WrapError("failed to create aggregate with key", err)
+			return false, 0, WrapError("failed to create aggregate with key", err)
 		}
-		return aggregateId, nil
+		return true, aggregateId, nil
 	}
 
-	return 0, WrapError("failed to get or create aggregate by key", err)
+	return false, 0, WrapError("failed to get or create aggregate by key", err)
 }
 
 func (s *SqliteStorageEngine) GetEventTypes(tx evercore.StorageEngineTxInfo, ctx context.Context) ([]evercore.IdNamePair, error) {

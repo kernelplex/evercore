@@ -655,11 +655,16 @@ func (s *StorageEngineTestSuite) testGetOrCreateAggregateWithMaxKeyLength(t *tes
 
 	// Test max key length
 	maxKey := strings.Repeat("L", s.iut.GetMaxKeyLength())
-	_, err = s.iut.GetOrCreateAggregateByKey(tx, ctx, userAggregateTypeId, maxKey)
+	created, aggregateId, err := s.iut.GetOrCreateAggregateByKey(tx, ctx, userAggregateTypeId, maxKey)
 	if err != nil {
 		t.Errorf("Failed with max length key: %v", err)
 	}
-
+	if !created {
+		t.Error("Expected new aggregate to be created")
+	}
+	if aggregateId <= 0 {
+		t.Errorf("Invalid aggregate id returned: %d", aggregateId)
+	}
 }
 
 func (s *StorageEngineTestSuite) testGetOrCreateAggregateByKey(t *testing.T) {
@@ -672,32 +677,38 @@ func (s *StorageEngineTestSuite) testGetOrCreateAggregateByKey(t *testing.T) {
 
 	// Test creating new aggregate
 	newKey := "test_key_" + time.Now().Format(time.RFC3339Nano)
-	aggregateId, err := s.iut.GetOrCreateAggregateByKey(tx, ctx, userAggregateTypeId, newKey)
+	created, aggregateId, err := s.iut.GetOrCreateAggregateByKey(tx, ctx, userAggregateTypeId, newKey)
 	if err != nil {
 		t.Errorf("Failed to create aggregate with key: %v", err)
+	}
+	if !created {
+		t.Error("Expected new aggregate to be created")
 	}
 	if aggregateId <= 0 {
 		t.Errorf("Invalid aggregate id returned: %d", aggregateId)
 	}
 
 	// Test getting existing aggregate
-	existingId, err := s.iut.GetOrCreateAggregateByKey(tx, ctx, userAggregateTypeId, newKey)
+	created, existingId, err := s.iut.GetOrCreateAggregateByKey(tx, ctx, userAggregateTypeId, newKey)
 	if err != nil {
 		t.Errorf("Failed to get existing aggregate: %v", err)
+	}
+	if created {
+		t.Error("Expected existing aggregate to be returned, not created")
 	}
 	if existingId != aggregateId {
 		t.Errorf("Existing aggregate id mismatch: expected %d got %d", aggregateId, existingId)
 	}
 
 	// Test wrong aggregate type
-	_, err = s.iut.GetOrCreateAggregateByKey(tx, ctx, profileAggregateTypeId, newKey)
+	_, _, err = s.iut.GetOrCreateAggregateByKey(tx, ctx, profileAggregateTypeId, newKey)
 	if err == nil {
 		t.Error("Expected error when using wrong aggregate type")
 	}
 
 	// Test exceeding max key length
 	tooLongKey := strings.Repeat("J", s.iut.GetMaxKeyLength()+1)
-	_, err = s.iut.GetOrCreateAggregateByKey(tx, ctx, userAggregateTypeId, tooLongKey)
+	_, _, err = s.iut.GetOrCreateAggregateByKey(tx, ctx, userAggregateTypeId, tooLongKey)
 	if !errors.Is(err, evercore.ErrorKeyExceedsMaximumLength) {
 		t.Errorf("Expected ErrorKeyExceedsMaximumLength, got: %v", err)
 	}
