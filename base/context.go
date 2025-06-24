@@ -70,7 +70,9 @@ func newEventStoreReadonlyContextType(store ContextOwner, ctx context.Context) *
 
 }
 
-func newEventStoreContextType(store ContextOwner, ctx context.Context, transaction StorageEngineTxInfo) *EventStoreContextType {
+func newEventStoreContextType(store ContextOwner,
+	ctx context.Context,
+	transaction StorageEngineTxInfo) *EventStoreContextType {
 	return &EventStoreContextType{
 		capturedEvents: make(EventSlice, 0, 5),
 		snapshots:      make(SnapshotSlice, 0, 5),
@@ -91,12 +93,16 @@ func (ctx EventStoreContextType) NewAggregateId(aggregateType string) (int64, er
 }
 
 // Adds a new aggregate stream with the specified natural key and returns the resulting id.
-func (ctx EventStoreContextType) NewAggregateIdWithKey(aggregateType string, naturalKey string) (int64, error) {
+func (ctx EventStoreContextType) NewAggregateIdWithKey(
+	aggregateType string,
+	naturalKey string) (int64, error) {
 	return ctx.store.newAggregateWithKey(&ctx, aggregateType, naturalKey)
 }
 
 // Loads the most recent snapshot and events from the event store
-func (ctx *EventStoreContextType) LoadAggregateState(aggregateType string, aggregateId int64) (*AggregateState, error) {
+func (ctx *EventStoreContextType) LoadAggregateState(
+	aggregateType string,
+	aggregateId int64) (*AggregateState, error) {
 	_, key, err := ctx.store.getAggregateById(ctx, aggregateType, aggregateId)
 	if err != nil {
 		return nil, err
@@ -106,7 +112,9 @@ func (ctx *EventStoreContextType) LoadAggregateState(aggregateType string, aggre
 }
 
 // Loads the aggregate state using the natural key.
-func (ctx *EventStoreContextType) LoadAggregateStateByKey(aggregateType string, naturalKey string) (*AggregateState, error) {
+func (ctx *EventStoreContextType) LoadAggregateStateByKey(
+	aggregateType string,
+	naturalKey string) (*AggregateState, error) {
 	aggregateId, err := ctx.store.getAggregateIdByKey(ctx, aggregateType, naturalKey)
 	if err != nil {
 		return nil, err
@@ -115,7 +123,9 @@ func (ctx *EventStoreContextType) LoadAggregateStateByKey(aggregateType string, 
 	return ctx.loadState(aggregateId, &naturalKey)
 }
 
-func (ctx *EventStoreContextType) loadState(aggregateId int64, naturalKey *string) (*AggregateState, error) {
+func (ctx *EventStoreContextType) loadState(
+	aggregateId int64,
+	naturalKey *string) (*AggregateState, error) {
 	snapshot, err := ctx.store.loadSnapshot(ctx, aggregateId)
 	if err != nil {
 		return nil, err
@@ -147,7 +157,9 @@ func (etx *EventStoreContextType) SaveSnapshot(snapshot Snapshot) {
 }
 
 // Loads the state of an aggregate into the aggregate.
-func (etx *EventStoreContextType) LoadStateInto(agg Aggregate, aggregateId int64) error {
+func (etx *EventStoreContextType) LoadStateInto(
+	agg Aggregate,
+	aggregateId int64) error {
 	aggregateType := agg.GetAggregateType()
 
 	state, err := etx.LoadAggregateState(aggregateType, aggregateId)
@@ -162,7 +174,9 @@ func (etx *EventStoreContextType) LoadStateInto(agg Aggregate, aggregateId int64
 }
 
 // Loads the state of an aggregate into the aggregate using the natural key.
-func (etx *EventStoreContextType) LoadStateByKeyInto(agg Aggregate, naturalKey string) error {
+func (etx *EventStoreContextType) LoadStateByKeyInto(
+	agg Aggregate,
+	naturalKey string) error {
 	aggregateType := agg.GetAggregateType()
 
 	state, err := etx.LoadAggregateStateByKey(aggregateType, naturalKey)
@@ -190,7 +204,9 @@ func (etx *EventStoreContextType) CreateAggregateInto(agg Aggregate) error {
 
 // LoadOrCreateAggregate loads an existing aggregate by natural key if it exists,
 // otherwise creates a new one. Returns true if the aggregate was created, false if loaded.
-func (etx *EventStoreContextType) LoadOrCreateAggregate(agg Aggregate, naturalKey string) (bool, error) {
+func (etx *EventStoreContextType) LoadOrCreateAggregate(
+	agg Aggregate,
+	naturalKey string) (bool, error) {
 	aggregateType := agg.GetAggregateType()
 
 	created, aggregateId, err := etx.store.getOrCreateAggregateByKey(etx, aggregateType, naturalKey)
@@ -209,27 +225,12 @@ func (etx *EventStoreContextType) LoadOrCreateAggregate(agg Aggregate, naturalKe
 	}
 
 	return false, nil
-	/*
-
-		// Only continue if the error is ErrNoRows, otherwise we have a real error.
-
-		// TODO: What about the case where we are not using a sql backend?
-		if !errors.Is(err, sql.ErrNoRows) {
-			return false, err
-		}
-
-		// If not found, create new one
-		id, err := etx.NewAggregateIdWithKey(aggregateType, naturalKey)
-		if err != nil {
-			return false, err
-		}
-		agg.SetId(id)
-		return true, nil
-	*/
 }
 
 // Creates a new aggregate of the specified type with the specified natural key.
-func (etx *EventStoreContextType) CreateAggregateWithKeyInto(agg Aggregate, naturalKey string) error {
+func (etx *EventStoreContextType) CreateAggregateWithKeyInto(
+	agg Aggregate,
+	naturalKey string) error {
 	aggregateType := agg.GetAggregateType()
 	id, err := etx.NewAggregateIdWithKey(aggregateType, naturalKey)
 	if err != nil {
@@ -266,7 +267,11 @@ func applyState(state *AggregateState, agg Aggregate) error {
 }
 
 // Applies an event to the aggregate.
-func (etx *EventStoreContextType) ApplyEventTo(agg Aggregate, eventState EventState, time time.Time, reference string) error {
+func (etx *EventStoreContextType) ApplyEventTo(
+	agg Aggregate,
+	eventState EventState,
+	time time.Time,
+	reference string) error {
 	err := agg.ApplyEventState(eventState, time, reference)
 	if err != nil {
 		return err
