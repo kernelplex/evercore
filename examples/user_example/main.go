@@ -2,12 +2,11 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"time"
 
 	"github.com/kernelplex/evercore/base"
-	"github.com/kernelplex/evercore/evercoresqlite"
+	"github.com/kernelplex/evercore/evercoreuri"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -23,16 +22,18 @@ type UserAggregate struct {
 	evercore.StateAggregate[UserState]
 }
 
-//evercoregen:state_event
 // UserCreatedEvent represents the initial creation of a user
+//
+//evercoregen:state_event
 type UserCreatedEvent struct {
 	Username string
 	Email    string
 	IsActive bool
 }
 
-//evercoregen:state_event
 // UserUpdatedEvent represents updates to a user
+//
+//evercoregen:state_event
 type UserUpdatedEvent struct {
 	Username *string
 	Email    *string
@@ -41,20 +42,11 @@ type UserUpdatedEvent struct {
 
 func main() {
 	// Initialize SQLite in-memory database
-	connectionString := "file::memory:?cache=shared"
-	db, err := sql.Open("sqlite3", connectionString)
+	connectionString := "sqlite3://:memory:?cache=shared"
+	store, err := evercoreuri.Connect(connectionString)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
-		return
+		log.Fatalf("Failed to connect to event store: %v", err)
 	}
-	if err := evercoresqlite.MigrateUp(db); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
-	}
-
-	engine := evercoresqlite.NewSqliteStorageEngine(db)
-
-	// Create event store
-	store := evercore.NewEventStore(engine)
 
 	// Run operations in a transaction
 	const username = "John"
