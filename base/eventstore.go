@@ -346,3 +346,8 @@ func (store *EventStore) loadSnapshot(stx *EventStoreContextType, aggregateId in
 func (store *EventStore) loadEvents(stx *EventStoreContextType, aggregateId int64, afterSequence int64) (EventSlice, error) {
 	return store.storageEngine.GetEventsForAggregate(stx.Transaction, stx.context, aggregateId, afterSequence)
 }
+
+// Closes the storage engine.
+func (store *EventStore) Close() error {
+	return store.storageEngine.Close()
+}

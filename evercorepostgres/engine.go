@@ -350,3 +350,7 @@ func (s *PostgresStorageEngine) WriteState(tx evercore.StorageEngineTxInfo, ctx 
 
 	return nil
 }
+
+func (s *PostgresStorageEngine) Close() error {
+	return s.db.Close()
+}

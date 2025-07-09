@@ -209,3 +209,8 @@ func (store *MemoryStorageEngine) WriteState(tx StorageEngineTxInfo, ctx context
 	store.CapturedSnapshots = append(store.CapturedSnapshots, snapshot...)
 	return nil
 }
+
+func (store *MemoryStorageEngine) Close() error {
+	// Nothing to do
+	return nil
+}

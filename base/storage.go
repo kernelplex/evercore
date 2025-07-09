@@ -60,4 +60,7 @@ type StorageEngine interface {
 
 	// Gets a transaction state to track multiple
 	GetTransactionInfo() (StorageEngineTxInfo, error)
+
+	// Closes the storage engine.
+	Close() error
 }

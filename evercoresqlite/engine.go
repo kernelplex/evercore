@@ -359,3 +359,7 @@ func (s *SqliteStorageEngine) WriteState(tx evercore.StorageEngineTxInfo, ctx co
 
 	return nil
 }
+
+func (s *SqliteStorageEngine) Close() error {
+	return s.db.Close()
+}
