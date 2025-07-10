@@ -14,16 +14,20 @@ var EmbeddedSqliteMigrations embed.FS
 const migrationsDir = "sql/migrations"
 const migrationsTable = "evercore_migrations"
 
-func MigrateUp(db *sql.DB) error {
+func MigrateUp(db *sql.DB) {
 	goose.SetDialect("postgres")
 	goose.SetBaseFS(EmbeddedSqliteMigrations)
 	goose.SetTableName("evercore_migrations")
-	return goose.Up(db, migrationsDir)
+	if err := goose.Up(db, migrationsDir); err != nil {
+		panic(err)
+	}
 }
 
-func MigrateDown(db *sql.DB) error {
+func MigrateDown(db *sql.DB) {
 	goose.SetDialect("postgres")
 	goose.SetBaseFS(EmbeddedSqliteMigrations)
 	goose.SetTableName("evercore_migrations")
-	return goose.Down(db, migrationsDir)
+	if err := goose.Down(db, migrationsDir); err != nil {
+		panic(err)
+	}
 }

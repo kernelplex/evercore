@@ -303,7 +303,6 @@ func (store *EventStore) getEventTypeId(tx StorageEngineTxInfo, ctx context.Cont
 
 // Retrieves an aggregate id by its natural key instead of its id.
 func (store *EventStore) getAggregateIdByKey(stx *EventStoreContextType, aggregateTypeName string, naturalKey string) (int64, error) {
-
 	aggregateTypeId, err := store.getAggregateTypeId(stx.Transaction, stx.context, aggregateTypeName)
 	if err != nil {
 		return 0, err
