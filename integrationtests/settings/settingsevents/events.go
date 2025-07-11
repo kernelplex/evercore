@@ -11,14 +11,14 @@ type SettingUpdatedEvent struct {
 	Value string `json:"value"`
 }
 
-func (s *SettingUpdatedEvent) AsEvent() evercore.EventState {
+func (s SettingUpdatedEvent) AsEvent() evercore.EventState {
 	return s
 }
 
-func (s *SettingUpdatedEvent) GetEventType() string {
+func (s SettingUpdatedEvent) GetEventType() string {
 	return generated_events.SettingUpdatedEventType
 }
 
-func (s *SettingUpdatedEvent) Serialize() string {
+func (s SettingUpdatedEvent) Serialize() string {
 	return evercore.SerializeToJson(s)
 }

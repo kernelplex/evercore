@@ -61,7 +61,7 @@ func (s *SystemSettingsAggregate) GetSnapshotState() (*string, error) {
 
 func (s *SystemSettingsAggregate) ApplyEventState(eventState evercore.EventState, eventTime time.Time, reference string) error {
 	switch ev := eventState.(type) {
-	case *settingsevents.SettingUpdatedEvent:
+	case settingsevents.SettingUpdatedEvent:
 		s.Settings[ev.Key] = ev.Value
 	default:
 		return fmt.Errorf("unknown event type: %T", eventState)

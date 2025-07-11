@@ -43,7 +43,7 @@ func EventDecoder(ev evercore.SerializedEvent) (evercore.EventState, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &eventState, nil
+		return eventState, nil
 	}
 	return nil, nil
 }

@@ -29,7 +29,7 @@ func (s *IntegrationTestSuite) loadIdentitySystemSettings(t *testing.T) {
 			Key:   SettingsAdminEmail,
 			Value: sampleUser.Email,
 		}
-		err = etx.ApplyEventTo(aggregate, &event, time.Now(), "test_suite")
+		err = etx.ApplyEventTo(aggregate, event, time.Now(), "test_suite")
 		if err != nil {
 			t.Errorf("Failed to apply event: %v", err)
 			return err
