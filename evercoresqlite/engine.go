@@ -1,5 +1,6 @@
 package evercoresqlite
 
+
 import (
 	"context"
 	"database/sql"
@@ -223,12 +224,11 @@ func (s *SqliteStorageEngine) GetEventTypes(tx evercore.StorageEngineTxInfo, ctx
 	queries := New(db)
 
 	eventTypes, err := queries.GetEventTypes(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return []evercore.IdNamePair{}, nil
-	}
-
 	if err != nil {
-		return nil, WrapError("failed to get events for aggregate", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return []evercore.IdNamePair{}, nil
+		}
+		return nil, WrapError("failed to get event types in GetEventTypes", err)
 	}
 
 	var localEventTypes = make([]evercore.IdNamePair, len(eventTypes))
@@ -246,12 +246,11 @@ func (s *SqliteStorageEngine) GetAggregateTypes(tx evercore.StorageEngineTxInfo,
 	queries := New(db)
 
 	aggregateTypes, err := queries.GetAggregateTypes(ctx)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return []evercore.IdNamePair{}, nil
-	}
-
 	if err != nil {
-		return nil, WrapError("failed to get snapshot for aggregate", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return []evercore.IdNamePair{}, nil
+		}
+		return nil, WrapError("failed to get aggregate types in GetAggregateTypes", err)
 	}
 
 	var localAggregateTypes = make([]evercore.IdNamePair, len(aggregateTypes))
@@ -297,14 +296,11 @@ func (s *SqliteStorageEngine) GetEventsForAggregate(tx evercore.StorageEngineTxI
 	}
 
 	eventRows, err := queries.GetEventsForAggregate(ctx, params)
-
-	// If we have no rows, just return an empty array.
-	if err != nil && errors.Is(err, sql.ErrNoRows) {
-		return []evercore.SerializedEvent{}, nil
-	}
-
 	if err != nil {
-		return nil, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return []evercore.SerializedEvent{}, nil
+		}
+		return nil, WrapError("failed to get events for aggregate in GetEventsForAggregate", err)
 	}
 
 	resultEvents := make([]evercore.SerializedEvent, 0, len(eventRows))

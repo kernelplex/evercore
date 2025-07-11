@@ -2,6 +2,7 @@ package evercore
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -105,7 +106,7 @@ func (ctx *EventStoreContextType) LoadAggregateState(
 	aggregateId int64) (*AggregateState, error) {
 	_, key, err := ctx.store.getAggregateById(ctx, aggregateType, aggregateId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get aggregate by ID in LoadAggregateState: %w", err)
 	}
 
 	return ctx.loadState(aggregateId, key)
@@ -117,7 +118,7 @@ func (ctx *EventStoreContextType) LoadAggregateStateByKey(
 	naturalKey string) (*AggregateState, error) {
 	aggregateId, err := ctx.store.getAggregateIdByKey(ctx, aggregateType, naturalKey)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get aggregate by key in LoadAggregateStateByKey: %w", err)
 	}
 
 	return ctx.loadState(aggregateId, &naturalKey)
@@ -128,7 +129,7 @@ func (ctx *EventStoreContextType) loadState(
 	naturalKey *string) (*AggregateState, error) {
 	snapshot, err := ctx.store.loadSnapshot(ctx, aggregateId)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load snapshot in loadState: %w", err)
 	}
 
 	var sequence int64 = 0
@@ -138,7 +139,7 @@ func (ctx *EventStoreContextType) loadState(
 
 	events, err := ctx.store.loadEvents(ctx, aggregateId, sequence)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load events in loadState: %w", err)
 	}
 
 	state := AggregateState{
@@ -168,7 +169,7 @@ func (etx *EventStoreContextType) LoadStateInto(
 	}
 	err = applyState(state, agg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to apply state in LoadStateInto: %w", err)
 	}
 	return nil
 }
@@ -186,7 +187,7 @@ func (etx *EventStoreContextType) LoadStateByKeyInto(
 
 	err = applyState(state, agg)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to apply state in LoadStateByKeyInto: %w", err)
 	}
 	return nil
 }
@@ -253,11 +254,11 @@ func applyState(state *AggregateState, agg Aggregate) error {
 	for _, event := range state.Events {
 		_, decoded, err := DecodeEvent(event)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decode event in applyState: %w", err)
 		}
 		err = agg.ApplyEventState(decoded, event.EventTime, event.Reference)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to apply event state in applyState: %w", err)
 		}
 		sequence = event.Sequence
 	}

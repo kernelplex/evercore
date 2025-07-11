@@ -1,5 +1,3 @@
-//go:build integration
-
 package evercorepostgres_test
 
 import (
