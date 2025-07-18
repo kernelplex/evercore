@@ -46,6 +46,10 @@ SELECT id FROM aggregates WHERE aggregate_type_id=sqlc.arg(aggregate_type_id) an
 -- name: GetAggregateById :one
 SELECT id, natural_key FROM aggregates WHERE aggregate_type_id=sqlc.arg(aggregate_type_id) AND id=sqlc.arg(aggregate_id);
 
+-- name: ChangeAggregateNaturalKey :exec
+UPDATE aggregates SET natural_key=sqlc.arg(natural_key) WHERE id=sqlc.arg(aggregate_id);
+
+
 --
 -- Event Queries
 --

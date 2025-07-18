@@ -182,6 +182,24 @@ func (s *PostgresStorageEngine) GetAggregateByKey(tx evercore.StorageEngineTxInf
 	return id, nil
 }
 
+func (s *PostgresStorageEngine) ChangeAggregateNaturalKey(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateId int64, naturalKey string) error {
+	if len(naturalKey) > maxKeyLength {
+		return evercore.ErrorKeyExceedsMaximumLength
+	}
+	db := s.maybeWrapTx(tx)
+	queries := New(db)
+	params := ChangeAggregateNaturalKeyParams{
+		AggregateID: aggregateId,
+		NaturalKey:  sql.NullString{String: naturalKey, Valid: true},
+	}
+	err := queries.ChangeAggregateNaturalKey(ctx, params)
+	if err != nil {
+		return WrapError("failed to change aggregate natural key", err)
+	}
+	return nil
+
+}
+
 func (s *PostgresStorageEngine) GetOrCreateAggregateByKey(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (bool, int64, error) {
 	if len(naturalKey) > maxKeyLength {
 		return false, 0, evercore.ErrorKeyExceedsMaximumLength

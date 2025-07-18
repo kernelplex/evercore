@@ -109,6 +109,29 @@ func (store *MemoryStorageEngine) NewAggregateWithKey(tx StorageEngineTxInfo, ct
 	return store.CountAggregates, nil
 }
 
+func (store *MemoryStorageEngine) ChangeAggregateNaturalKey(tx StorageEngineTxInfo, ctx context.Context, aggregateId int64, naturalKey string) error {
+
+	if len(naturalKey) > maxKeyLength {
+		return ErrorKeyExceedsMaximumLength
+	}
+
+	// Try to get existing aggregate first
+	aggregateKey, exists := store.AggregateInv[aggregateId]
+	if !exists {
+		return fmt.Errorf("No aggregate exists with Id of %d", aggregateId)
+	}
+
+	// Remove the existing key
+	delete(store.Aggregates, *aggregateKey)
+	delete(store.AggregateInv, aggregateId)
+
+	// Add the new key
+	store.Aggregates[naturalKey] = aggregateId
+	store.AggregateInv[aggregateId] = &naturalKey
+
+	return nil
+}
+
 func (store *MemoryStorageEngine) GetAggregateById(tx StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, aggregateId int64) (int64, *string, error) {
 	aggregateKey, exists := store.AggregateInv[aggregateId]
 	if !exists {

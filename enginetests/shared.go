@@ -69,6 +69,8 @@ func (s *StorageEngineTestSuite) RunTests(t *testing.T) {
 	t.Run("Reading existing events for aggregate with no events", s.getEventsForAggregateWithNoEvents)
 	t.Run("Reading existing events for aggregate after a specified sequence", s.getEventsAfterSequence)
 	t.Run("Reading events after last sequence", s.getEventsAfterLastSequence)
+	t.Run("Changing aggregate natural key", s.testChangeAggregateNaturalKey)
+	t.Run("Changing aggregate natural key with new key being too long", s.testChangeAggregateNaturalKey_WithNewKeyBeingTooLong)
 
 }
 
@@ -709,6 +711,52 @@ func (s *StorageEngineTestSuite) testGetOrCreateAggregateByKey(t *testing.T) {
 	// Test exceeding max key length
 	tooLongKey := strings.Repeat("J", s.iut.GetMaxKeyLength()+1)
 	_, _, err = s.iut.GetOrCreateAggregateByKey(tx, ctx, userAggregateTypeId, tooLongKey)
+	if !errors.Is(err, evercore.ErrorKeyExceedsMaximumLength) {
+		t.Errorf("Expected ErrorKeyExceedsMaximumLength, got: %v", err)
+	}
+}
+
+func (s *StorageEngineTestSuite) testChangeAggregateNaturalKey(t *testing.T) {
+	ctx := context.Background()
+	tx, err := s.iut.GetTransactionInfo()
+	if err != nil {
+		t.Errorf("Failed to create transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	userAggregateId := s.aggregateNoKey
+	newKey := "test_key_" + time.Now().Format(time.RFC3339Nano)
+
+	err = s.iut.ChangeAggregateNaturalKey(tx, ctx, userAggregateId, newKey)
+	if err != nil {
+		t.Errorf("Failed to change aggregate natural key: %v", err)
+	}
+
+	// Test getting existing aggregate
+	existing, err := s.iut.GetAggregateByKey(tx, ctx, userAggregateTypeId, newKey)
+
+	if err != nil {
+		t.Errorf("Failed to get existing aggregate: %v", err)
+	}
+
+	if existing != userAggregateId {
+		t.Errorf("Existing aggregate id mismatch: expected %d got %d", userAggregateId, existing)
+	}
+
+}
+
+func (s *StorageEngineTestSuite) testChangeAggregateNaturalKey_WithNewKeyBeingTooLong(t *testing.T) {
+	ctx := context.Background()
+	tx, err := s.iut.GetTransactionInfo()
+	if err != nil {
+		t.Errorf("Failed to create transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	userAggregateId := s.aggregateWithKey
+	tooLongKey := strings.Repeat("M", s.iut.GetMaxKeyLength()+1)
+
+	err = s.iut.ChangeAggregateNaturalKey(tx, ctx, userAggregateId, tooLongKey)
 	if !errors.Is(err, evercore.ErrorKeyExceedsMaximumLength) {
 		t.Errorf("Expected ErrorKeyExceedsMaximumLength, got: %v", err)
 	}

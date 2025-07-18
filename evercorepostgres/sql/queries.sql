@@ -40,6 +40,9 @@ INSERT INTO aggregates (aggregate_type_id) VALUES (sqlc.arg(aggregate_type_id))
 INSERT INTO aggregates (aggregate_type_id, natural_key) VALUES(sqlc.arg(aggregate_type_id), sqlc.arg(natural_key)) 
 	RETURNING id;
 
+-- name: ChangeAggregateNaturalKey :exec
+UPDATE aggregates SET natural_key=sqlc.arg(natural_key) WHERE id=sqlc.arg(aggregate_id);
+
 -- name: GetAggregateIdByNaturalKey :one
 SELECT id FROM aggregates WHERE aggregate_type_id=sqlc.arg(aggregate_type_id) and natural_key=sqlc.arg(natural_key);
 

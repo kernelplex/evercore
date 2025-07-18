@@ -43,6 +43,9 @@ type StorageEngine interface {
 	// - There are database errors
 	GetOrCreateAggregateByKey(tx StorageEngineTxInfo, ctx context.Context, aggregateTypeId int64, naturalKey string) (bool, int64, error)
 
+	// Changes the natural key of an aggregate.
+	ChangeAggregateNaturalKey(tx StorageEngineTxInfo, ctx context.Context, aggregateId int64, naturalKey string) error
+
 	// Loads all the aggregate types.
 	GetAggregateTypes(tx StorageEngineTxInfo, ctx context.Context) ([]IdNamePair, error)
 

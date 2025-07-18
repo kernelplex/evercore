@@ -120,6 +120,20 @@ func (q *Queries) AddSnapshot(ctx context.Context, arg AddSnapshotParams) error 
 	return err
 }
 
+const changeAggregateNaturalKey = `-- name: ChangeAggregateNaturalKey :exec
+UPDATE aggregates SET natural_key=$1 WHERE id=$2
+`
+
+type ChangeAggregateNaturalKeyParams struct {
+	NaturalKey  sql.NullString
+	AggregateID int64
+}
+
+func (q *Queries) ChangeAggregateNaturalKey(ctx context.Context, arg ChangeAggregateNaturalKeyParams) error {
+	_, err := q.db.ExecContext(ctx, changeAggregateNaturalKey, arg.NaturalKey, arg.AggregateID)
+	return err
+}
+
 const getAggregateById = `-- name: GetAggregateById :one
 SELECT id, natural_key FROM aggregates WHERE aggregate_type_id=$1 AND id=$2
 `
