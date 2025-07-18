@@ -39,14 +39,15 @@ func GetStorageEngine(uri string) (evercore.StorageEngine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
-	if durl.Driver == "postgres" {
+	switch durl.Driver {
+	case "postgres":
 		evercorepostgres.MigrateUp(db)
 		return evercorepostgres.NewPostgresStorageEngine(db), nil
 
-	} else if durl.Driver == "sqlite3" {
+	case "sqlite3":
 		evercoresqlite.MigrateUp(db)
 		return evercoresqlite.NewSqliteStorageEngine(db), nil
+	default:
+		return nil, fmt.Errorf("unsupported database driver: %s", durl.Driver)
 	}
-
-	return nil, fmt.Errorf("unsupported database driver: %s", durl.Driver)
 }
