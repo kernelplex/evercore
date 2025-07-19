@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 )
@@ -21,6 +22,18 @@ type SampleCreatedEvent struct {
 
 type SetActiveEvent struct {
 	Active bool
+}
+
+type UnhandledEvent struct {
+	Stuff bool
+}
+
+func (t UnhandledEvent) GetEventType() string {
+	return "UnhandledEvent"
+}
+
+func (t UnhandledEvent) Serialize() string {
+	return SerializeEvent(t)
 }
 
 func NewActiveEvent(active bool) EventState {
@@ -56,6 +69,29 @@ func (t SampleCreatedEvent) Serialize() string {
 // Embedding StateAggregate in a struct allows us to use reflection to copy fields from the event state to the struct.
 type SampleStateAggregate struct {
 	StateAggregate[SampleState]
+}
+
+func (t *SampleStateAggregate) ApplyEventState(eventState EventState, eventTime time.Time, reference string) error {
+	switch event := eventState.(type) {
+	case SetActiveEvent:
+		t.State.Active = event.Active
+		return nil
+	default:
+		slog.Info("*** Calling base ApplyEventState")
+		return t.StateAggregate.ApplyEventState(eventState, eventTime, reference)
+	}
+
+}
+
+func (t *SampleStateAggregate) HandleEvent(eventState EventState, eventTime time.Time, reference string) error {
+	slog.Info("*** SampleStateAggregate.HandleEvent called")
+	switch event := eventState.(type) {
+	case SetActiveEvent:
+		t.State.Active = event.Active
+		return nil
+	default:
+		return fmt.Errorf("unknown event type %s", event.GetEventType())
+	}
 }
 
 func TestStateAggregateImplementsAggregateInterface(t *testing.T) {
@@ -138,15 +174,17 @@ func TestApplyEventStateForNonStateEvents(t *testing.T) {
 	aggregate.State.LastName = "Harvey"
 	aggregate.State.Active = false
 
-	aggregate.HandleOtherEvents = func(eventState EventState, eventTime time.Time, reference string) error {
-		switch event := eventState.(type) {
-		case SetActiveEvent:
-			aggregate.State.Active = event.Active
-			return nil
-		default:
-			return fmt.Errorf("unknown event type %s", event.GetEventType())
+	/*
+		aggregate.HandleOtherEvents = func(eventState EventState, eventTime time.Time, reference string) error {
+			switch event := eventState.(type) {
+			case SetActiveEvent:
+				aggregate.State.Active = event.Active
+				return nil
+			default:
+				return fmt.Errorf("unknown event type %s", event.GetEventType())
+			}
 		}
-	}
+	*/
 
 	event := NewActiveEvent(true)
 
@@ -172,7 +210,7 @@ func TestApplyEventStateForNonStateEventsNoApplyMethod(t *testing.T) {
 	aggregate.State.LastName = "Harvey"
 	aggregate.State.Active = false
 
-	event := NewActiveEvent(true)
+	event := UnhandledEvent{Stuff: true}
 
 	err := aggregate.ApplyEventState(event, time.Now(), "")
 	// This should fail.

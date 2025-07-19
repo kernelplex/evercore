@@ -11,7 +11,7 @@ func (e ErrorMessage) Error() string {
 	return string(e)
 }
 
-var ErrEventStateIsNotAStateEvent = ErrorMessage("Event state is not a StateEvent and there is no Apply method.")
+var ErrEventStateIsNotAStateEvent = ErrorMessage("Event state is not a StateEvent.")
 
 type ApplyFunc func(eventState EventState, eventTime time.Time, reference string) error
 
@@ -34,11 +34,14 @@ type ApplyFunc func(eventState EventState, eventTime time.Time, reference string
 //	    }
 //	}
 type StateAggregate[T any] struct {
-	Id                int64
-	State             T
-	Sequence          int64
-	aggregateType     string
-	HandleOtherEvents ApplyFunc
+	Id            int64
+	State         T
+	Sequence      int64
+	aggregateType string
+}
+
+type stateAggregateOtherEvent interface {
+	HandleEvent(eventState EventState, eventTime time.Time, reference string) error
 }
 
 // EventDecoder is a function that decodes an event into an EventState.
@@ -119,11 +122,6 @@ func (t *StateAggregate[T]) ApplyEventState(eventState EventState, eventTime tim
 	if ok {
 		stateValue = value.GetState()
 		return CopyFields(stateValue, &t.State)
-	}
-
-	if t.HandleOtherEvents != nil {
-
-		return t.HandleOtherEvents(eventState, eventTime, reference)
 	}
 	return ErrEventStateIsNotAStateEvent
 }
