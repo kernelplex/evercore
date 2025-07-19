@@ -40,10 +40,6 @@ type StateAggregate[T any] struct {
 	aggregateType string
 }
 
-type stateAggregateOtherEvent interface {
-	HandleEvent(eventState EventState, eventTime time.Time, reference string) error
-}
-
 // EventDecoder is a function that decodes an event into an EventState.
 type EventDecoder func(ev SerializedEvent) (EventState, error)
 
