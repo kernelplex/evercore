@@ -34,6 +34,7 @@ type UserCreatedEvent struct {
 
 // evercore:state-event
 type UserUpdatedEvent struct {
+	Email        *string `json:"email"`
 	PasswordHash *string `json:"passwordHash"`
 	FirstName    *string `json:"firstName"`
 	LastName     *string `json:"lastName"`

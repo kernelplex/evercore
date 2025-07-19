@@ -24,6 +24,7 @@ type ContextOwner interface {
 	getAggregateIdByKey(stx *EventStoreContextType, aggregateType string, naturalKey string) (int64, error)
 	getAggregateById(stx *EventStoreContextType, aggregateType string, aggregateId int64) (int64, *string, error)
 	getOrCreateAggregateByKey(stx *EventStoreContextType, aggregateType string, naturalKey string) (bool, int64, error)
+	changeAggregateNaturalKey(stx *EventStoreContextType, aggregateId int64, naturalKey string) error
 	loadSnapshot(stx *EventStoreContextType, aggregateId int64) (*Snapshot, error)
 	loadEvents(stx *EventStoreContextType, aggregateId int64, afterSequence int64) (EventSlice, error)
 }
@@ -338,6 +339,11 @@ func (store *EventStore) getOrCreateAggregateByKey(stx *EventStoreContextType, a
 	}
 
 	return store.storageEngine.GetOrCreateAggregateByKey(stx.Transaction, stx.context, aggregateTypeId, naturalKey)
+}
+
+// z Changes the natural key of an aggregate.
+func (store *EventStore) changeAggregateNaturalKey(stx *EventStoreContextType, aggregateId int64, naturalKey string) error {
+	return store.storageEngine.ChangeAggregateNaturalKey(stx.Transaction, stx.context, aggregateId, naturalKey)
 }
 
 // Retrieves the most recent snapshot for the aggregate.

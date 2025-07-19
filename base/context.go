@@ -45,6 +45,7 @@ type EventStoreContext interface {
 	LoadOrCreateAggregate(agg Aggregate, naturalKey string) (bool, error)
 	CreateAggregateInto(agg Aggregate) error
 	CreateAggregateWithKeyInto(agg Aggregate, naturalKey string) error
+	ChangeAggregateNaturalKey(id int64, naturalKey string) error
 	ApplyEventTo(agg Aggregate, event EventState, time time.Time, reference string) error
 
 	Publish(*SerializedEvent)
@@ -238,6 +239,17 @@ func (etx *EventStoreContextType) CreateAggregateWithKeyInto(
 		return err
 	}
 	agg.SetId(id)
+	return nil
+}
+
+// Changes the natural key of an aggregate.
+func (etx *EventStoreContextType) ChangeAggregateNaturalKey(
+	id int64,
+	naturalKey string) error {
+	err := etx.store.changeAggregateNaturalKey(etx, id, naturalKey)
+	if err != nil {
+		return fmt.Errorf("failed to change aggregate natural key in ChangeAggregateNaturalKey: %w", err)
+	}
 	return nil
 }
 

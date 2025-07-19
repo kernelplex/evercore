@@ -41,6 +41,7 @@ func (s *IntegrationTestSuite) RunTests(t *testing.T) {
 	t.Run("Create user with existing email fails", s.createNewUserWithExistingEmail)
 	t.Run("Load identity system settings", s.loadIdentitySystemSettings)
 	t.Run("Reload identity system settings", s.reloadIdentitySystemSettings)
+	t.Run("Change user natural key", s.changeUserNaturalKey)
 }
 
 func (s *IntegrationTestSuite) createNewUser(t *testing.T) {
@@ -145,4 +146,64 @@ func (s *IntegrationTestSuite) createNewUserWithExistingEmail(t *testing.T) {
 
 	// Log the type of the error
 	assert.Equal(t, evercore.ErrorTypeConstraintViolation, storageErr.ErrorType)
+}
+
+func (s *IntegrationTestSuite) changeUserNaturalKey(t *testing.T) {
+	ctx := context.Background()
+	eventStore := s.eventStore
+
+	newFirstName := "Carlos"
+	newDisplayName := "Carlos Chavez"
+	newEmail := "carlos.chavez@example.com"
+
+	_, err := evercore.InContext(ctx, eventStore, func(etx evercore.EventStoreContext) (*user.UserAggregate, error) {
+		aggregate := user.UserAggregate{}
+
+		// Load existing user
+		err := etx.LoadStateInto(&aggregate, s.existingUserId)
+		if err != nil {
+			t.Errorf("Failed to load user: %v", err)
+			return nil, err
+		}
+
+		// Apply update event
+		event := evercore.NewStateEvent(user.UserUpdatedEvent{
+			Email: &newEmail,
+		})
+
+		err = etx.ChangeAggregateNaturalKey(s.existingUserId, newEmail)
+		if err != nil {
+			t.Errorf("Failed to change natural key: %v", err)
+			return nil, err
+		}
+
+		err = etx.ApplyEventTo(&aggregate, event, time.Now(), "test_suite")
+		if err != nil {
+			t.Errorf("Failed to apply update event: %v", err)
+			return nil, err
+		}
+
+		return &aggregate, nil
+	})
+	assert.NoError(t, err)
+
+	retrievedUser, err := evercore.InContext(ctx, eventStore, func(etx evercore.EventStoreContext) (*user.UserAggregate, error) {
+		aggregate := user.UserAggregate{}
+		err := etx.LoadStateByKeyInto(&aggregate, newEmail)
+		if err != nil {
+			t.Errorf("Failed to load user: %v", err)
+			return nil, err
+		}
+		return &aggregate, nil
+	})
+
+	assert.NoError(t, err)
+
+	// Verify the natural key was changed
+	assert.Equal(t, s.existingUserId, retrievedUser.GetId())
+	assert.Equal(t, newFirstName, retrievedUser.State.FirstName)
+	assert.Equal(t, newDisplayName, retrievedUser.State.DisplayName)
+	assert.Equal(t, sampleUser.LastName, retrievedUser.State.LastName)
+	assert.Equal(t, newEmail, retrievedUser.State.Email)
+	assert.Equal(t, sampleUser.PasswordHash, retrievedUser.State.PasswordHash)
 }
