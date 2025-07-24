@@ -75,7 +75,7 @@ func (s *SqliteStorageEngine) GetTransactionInfo() (evercore.StorageEngineTxInfo
 }
 
 func (s *SqliteStorageEngine) GetEventTypeId(tx evercore.StorageEngineTxInfo, ctx context.Context, name string) (int64, error) {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 	qtx := New(db)
 
 	eventTypeId, err := qtx.GetEventTypeIdByName(ctx, name)
@@ -95,7 +95,7 @@ func (s *SqliteStorageEngine) GetEventTypeId(tx evercore.StorageEngineTxInfo, ct
 }
 
 func (s *SqliteStorageEngine) GetAggregateTypeId(tx evercore.StorageEngineTxInfo, ctx context.Context, aggregateTypeName string) (int64, error) {
-	db := tx.(*sql.Tx)
+	db := s.maybeWrapTx(tx)
 	qtx := New(db)
 	aggregateTypeId, err := qtx.GetAggregateTypeIdByName(ctx, aggregateTypeName)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
