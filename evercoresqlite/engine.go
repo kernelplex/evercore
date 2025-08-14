@@ -21,7 +21,7 @@ func WrapError(msg string, err error) error {
 
 	// Check for SQLite unique constraint violation
 	if err != nil {
-		// Cehck for contains UNIQUE constraint failed
+		// Check for contains UNIQUE constraint failed
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			storageErr.ErrorType = evercore.ErrorTypeConstraintViolation
 		} else if errors.Is(err, sql.ErrNoRows) {

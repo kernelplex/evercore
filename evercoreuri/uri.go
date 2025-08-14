@@ -46,6 +46,25 @@ func GetStorageEngine(uri string) (evercore.StorageEngine, error) {
 
 	case "sqlite3":
 		evercoresqlite.MigrateUp(db)
+		_, err := db.Exec("PRAGMA journal_mode=WAL;")
+		if err != nil {
+			return nil, fmt.Errorf("failed to set journal mode: %w", err)
+		}
+		_, err = db.Exec("PRAGMA synchronous=normal;")
+		if err != nil {
+			return nil, fmt.Errorf("failed to set synchronous mode: %w", err)
+		}
+
+		_, err = db.Exec("PRAGMA temp_store=memory;")
+		if err != nil {
+			return nil, fmt.Errorf("failed to set temp store: %w", err)
+		}
+
+		_, err = db.Exec("PRAGMA mmap_size = 30000000000;")
+		if err != nil {
+			return nil, fmt.Errorf("failed to set mmap size: %w", err)
+		}
+
 		return evercoresqlite.NewSqliteStorageEngine(db), nil
 	default:
 		return nil, fmt.Errorf("unsupported database driver: %s", durl.Driver)
