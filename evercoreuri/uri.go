@@ -8,7 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/kernelplex/evercore/base"
+	evercore "github.com/kernelplex/evercore/base"
 	"github.com/kernelplex/evercore/evercorepostgres"
 	"github.com/kernelplex/evercore/evercoresqlite"
 	"github.com/xo/dburl"

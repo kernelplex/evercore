@@ -53,7 +53,7 @@ func NewSqliteStorageEngine(db *sql.DB) *SqliteStorageEngine {
 
 // Creates a new Sqlite backed storage engine connecting to the connection string.
 func NewSqliteStorageEngineWithConnection(connectionString string) (*SqliteStorageEngine, error) {
-	db, err := sql.Open("sqlite3", connectionString)
+	db, err := sql.Open("sqlite", connectionString)
 	if err != nil {
 		return nil, WrapError("failed to begin transaction", err)
 	}

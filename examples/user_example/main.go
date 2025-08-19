@@ -2,13 +2,19 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"time"
 
 	"github.com/kernelplex/evercore/base"
 	"github.com/kernelplex/evercore/evercoreuri"
-	_ "github.com/mattn/go-sqlite3"
+	"modernc.org/sqlite"
 )
+
+func init() {
+	// Register the modernc.org/sqlite driver under the name "sqlite3"
+	sql.Register("sqlite3", &sqlite.Driver{})
+}
 
 // UserState represents the state of our User aggregate
 type UserState struct {
@@ -42,7 +48,7 @@ type UserUpdatedEvent struct {
 
 func main() {
 	// Initialize SQLite in-memory database
-	connectionString := "sqlite3://:memory:?cache=shared"
+	connectionString := "sqlite://:memory:?cache=shared"
 	store, err := evercoreuri.Connect(connectionString)
 	if err != nil {
 		log.Fatalf("Failed to connect to event store: %v", err)

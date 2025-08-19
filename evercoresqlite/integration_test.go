@@ -9,12 +9,12 @@ import (
 	"github.com/kernelplex/evercore/enginetests"
 	"github.com/kernelplex/evercore/evercoresqlite"
 	"github.com/kernelplex/evercore/integrationtests"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 func TestSqliteDatastore(t *testing.T) {
 
-	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
 	if err != nil {
 		panic(err)
 	}
@@ -27,7 +27,7 @@ func TestSqliteDatastore(t *testing.T) {
 }
 
 func TestSqliteDatasotreEventStoreIntegrationTests(t *testing.T) {
-	db, err := sql.Open("sqlite3", "file::memory:?cache=shared")
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
 	if err != nil {
 		panic(err)
 	}
