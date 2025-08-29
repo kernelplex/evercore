@@ -58,5 +58,4 @@ DROP TABLE aggregates;
 DROP TABLE event_types;
 DROP TABLE aggregate_types;
 DROP TABLE snapshots;
-
 -- +goose StatementEnd
