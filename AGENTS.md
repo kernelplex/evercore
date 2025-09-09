@@ -1,40 +1,45 @@
-# Evercore Agent Guidelines
+# Repository Guidelines
 
-## Build & Test Commands
+This guide helps contributors work effectively in the Evercore repository.
 
-- Build: `make tool`
-- Run all tests: `make test`
-- Run integration tests: `make integration-test`
-- Run specific test: `go test -run TestName ./path/to/pkg`
-- Generate coverage report: `make test-cover`
+## Project Structure & Module Organization
 
-## Code Style Conventions
+- `base/`: Core event-sourcing primitives (aggregates, events, store).
+- `evercoresqlite/`, `evercorepostgres/`: Storage engines and tests.
+- `evercoreuri/`: URI helpers and parsing.
+- `cmd/evercoregen/`: Code generation tool binary source.
+- `integrationtests/`, `enginetests/`: Integration and engine-focused tests.
+- `examples/`: Minimal usage samples.
+- `build/`, `tmp/`: Generated artifacts and coverage outputs.
 
-1. **Formatting**: Use `gofmt` standard formatting
-2. **Imports**: Group stdlib, third-party, local imports
-3. **Naming**:
-   - PascalCase for exported identifiers
-   - camelCase for unexported
-   - Acronyms all caps (e.g., SQL, ID)
-4. **Error Handling**:
-   - Handle errors immediately
-   - Use `errors.Is`/`errors.As` for error inspection
-   - Wrap errors with context
-5. **Types**:
-   - Use strong typing with structs/interfaces
-   - Avoid global variables
-6. **SQL**:
-   - Generate SQL code with `make sqlc-gen`
-   - Keep queries in .sql files
+## Build, Test, and Development Commands
+
+- Build tool: `make tool` — builds `build/evercoregen`.
+- Unit tests: `make test` — runs `./...` with `-race` and coverage.
+- Integration tests: `make integration-test` — all backends with `-tags=integration`.
+  - Backend-specific: `make integration-test-sqlite`, `make integration-test-postgres`.
+- Coverage reports: `make test-cover`, `make integration-test-cover`.
+- SQL codegen: `make sqlc-gen` — generates code from `.sql` via `sqlc` configs.
+- Run scratch: `make scratch` — executes `scratch/main.go` for local experiments.
+- Targeted test: `go test -run TestName ./path/to/pkg`.
+
+## Coding Style & Naming Conventions
+
+- Formatting: `gofmt` standard; organize imports (stdlib, third-party, local).
+- Naming: PascalCase exported, camelCase unexported; acronyms all caps (ID, SQL).
+- Errors: handle immediately; prefer `errors.Is/As`; wrap with context.
+- Types: prefer explicit structs/interfaces; avoid globals.
+- SQL: keep queries in `.sql`; regenerate via `make sqlc-gen`.
 
 ## Testing Guidelines
 
-- Use `-race` flag for concurrency tests
-- Prefer table-driven tests
-- Separate unit and integration tests (`-tags=integration`)
-- Keep tests in same package with `_test` suffix
+- Keep tests in the same package with `_test.go`; prefer table-driven tests.
+- Use `-race`; split unit vs integration via `-tags=integration`.
+- Generate coverage locally with `make test-cover` or integration profile.
+- Backend tests may require env vars (e.g., `PG_TEST_RUNNER_CONNECTION=postgres://...`).
 
-## Commit Messages
+## Commit & Pull Request Guidelines
 
-- Use the [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/) format
-- Include a body with a more detailed description of the changes
+- Commits: follow Conventional Commits (feat:, fix:, chore:, refactor:, test:, docs:). Include a clear body.
+- PRs: concise title, description, linked issues, test plan, and any schema/codegen changes noted.
+- CI hygiene: run `make test` and relevant `make integration-test-*` targets before submitting.

@@ -28,18 +28,18 @@ aggregates and events. First mark your types with these
 annotations:
 
 ```go
-//evercoregen:aggregate
+// evercore:aggregate
 type UserAggregate struct {
-    base.StateAggregate[UserState]
+    evercore.StateAggregate[UserState]
 }
 
-//evercoregen:state_event 
+// evercore:state-event 
 type UserCreatedEvent struct {
     Username string
     Email    string
 }
 
-//evercoregen:event
+// evercore:event
 type UserLoggedInEvent struct {
     Timestamp time.Time
 }
@@ -63,7 +63,7 @@ import (
      "log"
      "time"
 
-     "github.com/kernelplex/evercore/base"
+     evercore "github.com/kernelplex/evercore/base"
      "github.com/kernelplex/evercore/evercoresqlite"
      _ "github.com/mattn/go-sqlite3"
 )
@@ -76,7 +76,7 @@ type UserState struct {
 }
 
 type UserAggregate struct {
-     base.StateAggregate[UserState]
+     evercore.StateAggregate[UserState]
 }
 
 // UserCreatedEvent represents the creation event
@@ -95,16 +95,16 @@ func main() {
      evercoresqlite.MigrateUp(db)
 
      // Create event store
-     store := base.NewEventStore(evercoresqlite.NewSqliteStorageEngine(db))
+     store := evercore.NewEventStore(evercoresqlite.NewSqliteStorageEngine(db))
 
      // Run transaction
-     err = store.WithContext(context.Background(), func(ctx base.EventStoreContext) error {
+     err = store.WithContext(context.Background(), func(ctx evercore.EventStoreContext) error {
           user := UserAggregate{}
           if err := ctx.CreateAggregateInto(&user); err != nil {
                return err
           }
 
-          event := base.NewStateEvent(UserCreatedEvent{
+          event := evercore.NewStateEvent(UserCreatedEvent{
                Username: "johndoe",
                Email:    "john@example.com",
                IsActive: true,
@@ -123,7 +123,6 @@ func main() {
 ### PostgreSQL
 
 ```bash
-export PG_TEST_RUNNER_CONNECTION="postgres://user:pass@localhost:5432/db?sslmode=disable"
 make integration-test-postgres
 ```
 
@@ -136,7 +135,7 @@ make integration-test-sqlite
 ### In-Memory
 
 ```go
-engine := base.NewMemoryStorageEngine()
+engine := evercore.NewMemoryStorageEngine()
 ```
 
 ### The evercoregen tool
@@ -165,17 +164,20 @@ type UserAggregate struct {
 ### For State Events
 
 ```go
-// evercore:state_event
+// evercore:state-event
 type UserCreatedEvent struct {
   ...
+}
+```
 
-## For Other Events
+### For Other Events
 
 ```go
 // evercore:event
 type UserCreatedEvent struct {
   ...
-
+}
+```
 
 ### Using the evercoregen tool
 
@@ -211,8 +213,6 @@ make scratch  # Runs scratch/main.go
 
 ## Architecture
 
-![Evercore Architecture Diagram](docs/architecture.png)
-
 Key components:
 
 - `EventStore`: Core coordinator
@@ -223,8 +223,6 @@ Key components:
 
 ## Hints
 
-- Use store.Warmup() as early as possible in your application
-- Keep the list of known aggregate and event types up to date.  
-  This will save database calls during normal operation.
-- Use separate databases for your event store and your relational  
-  model (espectially if using sqlite)
+- Use `store.Warmup()` as early as possible in your application.
+- Keep the list of known aggregate and event types up to date to save database calls during normal operation.
+- Use separate databases for your event store and your relational model (especially if using SQLite).
