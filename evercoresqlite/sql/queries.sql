@@ -83,3 +83,75 @@ WHERE aggregate_id=sqlc.arg(aggregate_id)
 ORDER BY sequence DESC
 LIMIT 1;
 
+
+--
+-- Subscription Queries
+--
+
+-- name: UpsertSubscription :one
+INSERT INTO subscriptions (
+  name, aggregate_type_id, event_type_id, aggregate_key,
+  start_from, start_event_id, start_timestamp
+) VALUES (
+  sqlc.arg(name), sqlc.arg(aggregate_type_id), sqlc.arg(event_type_id), sqlc.arg(aggregate_key),
+  sqlc.arg(start_from), sqlc.arg(start_event_id), sqlc.arg(start_timestamp)
+)
+ON CONFLICT(name) DO UPDATE SET
+  aggregate_type_id=excluded.aggregate_type_id,
+  event_type_id=excluded.event_type_id,
+  aggregate_key=excluded.aggregate_key,
+  start_from=excluded.start_from,
+  start_event_id=excluded.start_event_id,
+  start_timestamp=excluded.start_timestamp,
+  updated_at=CURRENT_TIMESTAMP
+RETURNING id;
+
+-- name: AddSubscriptionEventType :exec
+INSERT OR IGNORE INTO subscription_event_types (subscription_id, event_type_id)
+VALUES (sqlc.arg(subscription_id), sqlc.arg(event_type_id));
+
+-- name: GetSubscriptionByName :one
+SELECT id, name, aggregate_type_id, event_type_id, aggregate_key,
+       start_from, start_event_id, start_timestamp,
+       last_event_id, active, lease_owner, lease_expires_at
+FROM subscriptions WHERE name = sqlc.arg(name);
+
+-- name: SetSubscriptionActive :exec
+UPDATE subscriptions SET active = sqlc.arg(active), updated_at=CURRENT_TIMESTAMP WHERE id = sqlc.arg(id);
+
+-- name: ClaimSubscription :execrows
+UPDATE subscriptions
+SET lease_owner = sqlc.arg(owner), lease_expires_at = sqlc.arg(lease_expires_at), updated_at=CURRENT_TIMESTAMP
+WHERE name = sqlc.arg(name) AND active = 1 AND (lease_owner IS NULL OR lease_expires_at < sqlc.arg(now));
+
+-- name: RenewSubscription :execrows
+UPDATE subscriptions
+SET lease_expires_at = sqlc.arg(lease_expires_at), updated_at=CURRENT_TIMESTAMP
+WHERE name = sqlc.arg(name) AND lease_owner = sqlc.arg(owner) AND active = 1;
+
+-- name: ReleaseSubscription :exec
+UPDATE subscriptions SET lease_owner = NULL, lease_expires_at = NULL, updated_at=CURRENT_TIMESTAMP
+WHERE name = sqlc.arg(name) AND lease_owner = sqlc.arg(owner);
+
+-- name: GetEventsForSubscription :many
+SELECT id, aggregate_id, natural_key, sequence, aggregate_type_id, aggregate_type, event_type_id, event_type, event_time, state
+FROM event_log
+WHERE id > sqlc.arg(after_id)
+  AND (sqlc.arg(aggregate_type_id) IS NULL OR aggregate_type_id = sqlc.arg(aggregate_type_id))
+  AND (sqlc.arg(aggregate_key) IS NULL OR natural_key = sqlc.arg(aggregate_key))
+  AND (
+    (sqlc.arg(use_multi) = 1 AND event_type_id IN (SELECT event_type_id FROM subscription_event_types WHERE subscription_id = sqlc.arg(subscription_id)))
+    OR
+    (sqlc.arg(use_multi) = 0 AND (sqlc.arg(event_type_id) IS NULL OR event_type_id = sqlc.arg(event_type_id)))
+  )
+ORDER BY id ASC
+LIMIT sqlc.arg(limit);
+
+-- name: AdvanceSubscriptionCursor :exec
+UPDATE subscriptions SET last_event_id = sqlc.arg(last_event_id), updated_at=CURRENT_TIMESTAMP WHERE id = sqlc.arg(id);
+
+-- name: GetMaxEventId :one
+SELECT COALESCE(MAX(id), 0) AS id FROM events;
+
+-- name: GetFirstEventIdFromTimestamp :one
+SELECT id FROM events WHERE event_time >= sqlc.arg(ts) ORDER BY id ASC LIMIT 1;
