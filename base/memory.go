@@ -1,16 +1,17 @@
 package evercore
 
 import (
-	"context"
-	"fmt"
+    "context"
+    "fmt"
+    "time"
 )
 
 const maxKeyLength = 64
 
 // Ephemeral memory storage engine useful for testing without a database.
 type MemoryStorageEngine struct {
-	CapturedEvents    []StorageEngineEvent
-	CapturedSnapshots []Snapshot
+    CapturedEvents    []StorageEngineEvent
+    CapturedSnapshots []Snapshot
 
 	AggregateTypes     map[string]int64
 	AggregateTypesInv  map[int64]string
@@ -19,24 +20,33 @@ type MemoryStorageEngine struct {
 	CountAggregateType int64
 	CountEventTypes    int64
 	CountAggregates    int64
-	AggregateToTypeId  map[int64]int64
-	Aggregates         map[string]int64
-	AggregateInv       map[int64]*string
+    AggregateToTypeId  map[int64]int64
+    Aggregates         map[string]int64
+    AggregateInv       map[int64]*string
+
+    // Subscriptions (in-memory only)
+    Subscriptions          map[string]*Subscription
+    SubscriptionByID       map[int64]*Subscription
+    SubscriptionEventTypes map[int64]map[int64]bool // subscriptionID -> set(eventTypeID)
+    NextSubscriptionID     int64
 }
 
 // NewMemoryStorageEngine creates a new in-memory storage engine.
 func NewMemoryStorageEngine() *MemoryStorageEngine {
-	return &MemoryStorageEngine{
-		CapturedEvents:    make([]StorageEngineEvent, 0),
-		CapturedSnapshots: make([]Snapshot, 0),
-		AggregateTypes:    make(map[string]int64),
-		AggregateTypesInv: make(map[int64]string),
-		EventTypes:        make(map[string]int64),
-		EventTypesInv:     make(map[int64]string),
-		Aggregates:        make(map[string]int64),
-		AggregateToTypeId: make(map[int64]int64),
-		AggregateInv:      make(map[int64]*string),
-	}
+    return &MemoryStorageEngine{
+        CapturedEvents:    make([]StorageEngineEvent, 0),
+        CapturedSnapshots: make([]Snapshot, 0),
+        AggregateTypes:    make(map[string]int64),
+        AggregateTypesInv: make(map[int64]string),
+        EventTypes:        make(map[string]int64),
+        EventTypesInv:     make(map[int64]string),
+        Aggregates:        make(map[string]int64),
+        AggregateToTypeId: make(map[int64]int64),
+        AggregateInv:      make(map[int64]*string),
+        Subscriptions:          make(map[string]*Subscription),
+        SubscriptionByID:       make(map[int64]*Subscription),
+        SubscriptionEventTypes: make(map[int64]map[int64]bool),
+    }
 }
 
 // MemoryStorageEngineTransaction is a transaction for the in-memory storage engine.
@@ -212,19 +222,20 @@ func (store *MemoryStorageEngine) GetSnapshotForAggregate(tx StorageEngineTxInfo
 func (store *MemoryStorageEngine) GetEventsForAggregate(tx StorageEngineTxInfo, ctx context.Context, aggregateId int64, afterSequence int64) ([]SerializedEvent, error) {
 	aggregateEvents := make([]SerializedEvent, 0, 10)
 	for _, storageEvent := range store.CapturedEvents {
-		if storageEvent.AggregateID == aggregateId && storageEvent.Sequence > afterSequence {
-			event := SerializedEvent{
-				AggregateId: aggregateId,
-				EventType:   store.EventTypesInv[storageEvent.EventTypeID],
-				Sequence:    storageEvent.Sequence,
-				State:       storageEvent.State,
-				Reference:   storageEvent.Reference,
-				EventTime:   storageEvent.EventTime,
-			}
-			aggregateEvents = append(aggregateEvents, event)
-		}
-	}
-	return aggregateEvents, nil
+        if storageEvent.AggregateID == aggregateId && storageEvent.Sequence > afterSequence {
+            event := SerializedEvent{
+                EventID:    0,
+                AggregateId: aggregateId,
+                EventType:   store.EventTypesInv[storageEvent.EventTypeID],
+                Sequence:    storageEvent.Sequence,
+                State:       storageEvent.State,
+                Reference:   storageEvent.Reference,
+                EventTime:   storageEvent.EventTime,
+            }
+            aggregateEvents = append(aggregateEvents, event)
+        }
+    }
+    return aggregateEvents, nil
 }
 
 func (store *MemoryStorageEngine) WriteState(tx StorageEngineTxInfo, ctx context.Context, events []StorageEngineEvent, snapshot SnapshotSlice) error {
@@ -234,6 +245,172 @@ func (store *MemoryStorageEngine) WriteState(tx StorageEngineTxInfo, ctx context
 }
 
 func (store *MemoryStorageEngine) Close() error {
-	// Nothing to do
-	return nil
+    // Nothing to do
+    return nil
+}
+
+// ---------------- Subscriptions (memory) ----------------
+
+func (store *MemoryStorageEngine) UpsertSubscription(tx StorageEngineTxInfo, ctx context.Context, name string, aggregateTypeId *int64, eventTypeId *int64, aggregateKey *string, startFrom string, startEventId int64, startTimestamp *time.Time) (int64, error) {
+    if s, ok := store.Subscriptions[name]; ok {
+        s.AggregateTypeID = aggregateTypeId
+        s.EventTypeID = eventTypeId
+        s.AggregateKey = aggregateKey
+        s.StartFrom = startFrom
+        s.StartEventID = startEventId
+        s.StartTimestamp = startTimestamp
+        return s.ID, nil
+    }
+    store.NextSubscriptionID++
+    sub := &Subscription{
+        ID:             store.NextSubscriptionID,
+        Name:           name,
+        AggregateTypeID: aggregateTypeId,
+        EventTypeID:     eventTypeId,
+        AggregateKey:    aggregateKey,
+        StartFrom:       startFrom,
+        StartEventID:    startEventId,
+        StartTimestamp:  startTimestamp,
+        LastEventID:     0,
+        Active:          true,
+        LeaseOwner:      nil,
+        LeaseExpiresAt:  nil,
+    }
+    store.Subscriptions[name] = sub
+    store.SubscriptionByID[sub.ID] = sub
+    return sub.ID, nil
+}
+
+func (store *MemoryStorageEngine) AddSubscriptionEventType(tx StorageEngineTxInfo, ctx context.Context, subscriptionId int64, eventTypeId int64) error {
+    set, ok := store.SubscriptionEventTypes[subscriptionId]
+    if !ok {
+        set = make(map[int64]bool)
+        store.SubscriptionEventTypes[subscriptionId] = set
+    }
+    set[eventTypeId] = true
+    return nil
+}
+
+func (store *MemoryStorageEngine) GetSubscriptionByName(tx StorageEngineTxInfo, ctx context.Context, name string) (*Subscription, error) {
+    s, ok := store.Subscriptions[name]
+    if !ok {
+        return nil, fmt.Errorf("subscription not found")
+    }
+    // return a copy to prevent accidental mutation
+    c := *s
+    return &c, nil
+}
+
+func (store *MemoryStorageEngine) SetSubscriptionActive(tx StorageEngineTxInfo, ctx context.Context, id int64, active bool) error {
+    s, ok := store.SubscriptionByID[id]
+    if !ok {
+        return fmt.Errorf("subscription not found")
+    }
+    s.Active = active
+    return nil
+}
+
+func (store *MemoryStorageEngine) ClaimSubscription(tx StorageEngineTxInfo, ctx context.Context, name string, owner string, lease time.Duration) (bool, error) {
+    s, ok := store.Subscriptions[name]
+    if !ok || !s.Active {
+        return false, nil
+    }
+    now := time.Now()
+    if s.LeaseOwner == nil || s.LeaseExpiresAt == nil || s.LeaseExpiresAt.Before(now) {
+        s.LeaseOwner = &owner
+        exp := now.Add(lease)
+        s.LeaseExpiresAt = &exp
+        return true, nil
+    }
+    return false, nil
+}
+
+func (store *MemoryStorageEngine) RenewSubscription(tx StorageEngineTxInfo, ctx context.Context, name string, owner string, lease time.Duration) (bool, error) {
+    s, ok := store.Subscriptions[name]
+    if !ok || !s.Active || s.LeaseOwner == nil || *s.LeaseOwner != owner {
+        return false, nil
+    }
+    exp := time.Now().Add(lease)
+    s.LeaseExpiresAt = &exp
+    return true, nil
+}
+
+func (store *MemoryStorageEngine) ReleaseSubscription(tx StorageEngineTxInfo, ctx context.Context, name string, owner string) error {
+    s, ok := store.Subscriptions[name]
+    if !ok || s.LeaseOwner == nil || *s.LeaseOwner != owner {
+        return nil
+    }
+    s.LeaseOwner = nil
+    s.LeaseExpiresAt = nil
+    return nil
+}
+
+func (store *MemoryStorageEngine) GetEventsForSubscription(tx StorageEngineTxInfo, ctx context.Context, sub *Subscription, limit int) ([]SerializedEvent, error) {
+    results := make([]SerializedEvent, 0, limit)
+    haveMulti := false
+    if set, ok := store.SubscriptionEventTypes[sub.ID]; ok && len(set) > 0 {
+        haveMulti = true
+    }
+    // EventID is 1-based index into CapturedEvents
+    for idx, e := range store.CapturedEvents {
+        id := int64(idx + 1)
+        if id <= sub.LastEventID {
+            continue
+        }
+        if sub.AggregateTypeID != nil {
+            if store.AggregateToTypeId[e.AggregateID] != *sub.AggregateTypeID {
+                continue
+            }
+        }
+        if sub.AggregateKey != nil {
+            key, ok := store.AggregateInv[e.AggregateID]
+            if !ok || key == nil || *key != *sub.AggregateKey {
+                continue
+            }
+        }
+        if haveMulti {
+            if !store.SubscriptionEventTypes[sub.ID][e.EventTypeID] {
+                continue
+            }
+        } else if sub.EventTypeID != nil {
+            if e.EventTypeID != *sub.EventTypeID {
+                continue
+            }
+        }
+        results = append(results, SerializedEvent{
+            EventID:     id,
+            AggregateId: e.AggregateID,
+            EventType:   store.EventTypesInv[e.EventTypeID],
+            State:       e.State,
+            Sequence:    e.Sequence,
+            Reference:   e.Reference,
+            EventTime:   e.EventTime,
+        })
+        if len(results) >= limit {
+            break
+        }
+    }
+    return results, nil
+}
+
+func (store *MemoryStorageEngine) AdvanceSubscriptionCursor(tx StorageEngineTxInfo, ctx context.Context, id int64, lastEventId int64) error {
+    s, ok := store.SubscriptionByID[id]
+    if !ok {
+        return fmt.Errorf("subscription not found")
+    }
+    s.LastEventID = lastEventId
+    return nil
+}
+
+func (store *MemoryStorageEngine) GetMaxEventId(tx StorageEngineTxInfo, ctx context.Context) (int64, error) {
+    return int64(len(store.CapturedEvents)), nil
+}
+
+func (store *MemoryStorageEngine) GetFirstEventIdFromTimestamp(tx StorageEngineTxInfo, ctx context.Context, ts time.Time) (int64, error) {
+    for idx, e := range store.CapturedEvents {
+        if e.EventTime.After(ts) || e.EventTime.Equal(ts) {
+            return int64(idx + 1), nil
+        }
+    }
+    return 0, nil
 }

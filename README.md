@@ -203,6 +203,20 @@ make integration-test-sqlite  # SQLite only
 make integration-test-postgres  # PostgreSQL only
 ```
 
+## Subscriptions
+
+Evercore includes durable subscriptions that stream events in global order and survive restarts.
+
+- Stored in DB with a durable cursor (`last_event_id`).
+- Filters: aggregate type, event type(s), and optional aggregate key.
+- Start positions: `beginning`, `end`, `event_id`, `timestamp`.
+- Leasing: cooperative leases (`lease_owner`, `lease_expires_at`) enable distributed runners.
+- Delivery: at-least-once; keep handlers idempotent.
+
+API: `EventStore.RunSubscription(ctx, name, filter, start, opts, handler)`
+
+Example: `examples/subscription_example/main.go` shows an in-memory runner for shipped orders.
+
 ## Development
 
 Use the scratch directory for experimentation:
