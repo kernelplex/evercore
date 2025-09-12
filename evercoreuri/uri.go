@@ -39,17 +39,17 @@ func GetStorageEngine(uri string) (evercore.StorageEngine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
-	switch durl.Driver {
-	case "postgres":
-		evercorepostgres.MigrateUp(db)
-		return evercorepostgres.NewPostgresStorageEngine(db), nil
+    switch durl.Driver {
+    case "postgres", "pgx":
+        evercorepostgres.MigrateUp(db)
+        return evercorepostgres.NewPostgresStorageEngine(db), nil
 
-	case "sqlite3":
-		evercoresqlite.MigrateUp(db)
-		_, err := db.Exec("PRAGMA journal_mode=WAL;")
-		if err != nil {
-			return nil, fmt.Errorf("failed to set journal mode: %w", err)
-		}
+    case "sqlite3", "sqlite":
+        evercoresqlite.MigrateUp(db)
+        _, err := db.Exec("PRAGMA journal_mode=WAL;")
+        if err != nil {
+            return nil, fmt.Errorf("failed to set journal mode: %w", err)
+        }
 		_, err = db.Exec("PRAGMA synchronous=normal;")
 		if err != nil {
 			return nil, fmt.Errorf("failed to set synchronous mode: %w", err)

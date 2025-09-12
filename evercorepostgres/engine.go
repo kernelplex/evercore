@@ -1,14 +1,13 @@
 package evercorepostgres
 
 import (
-    "context"
-    "database/sql"
-    "errors"
-    "fmt"
-    "strings"
-    "time"
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
 
-	"github.com/kernelplex/evercore/base"
+	evercore "github.com/kernelplex/evercore/base"
 )
 
 const maxKeyLength = 64
@@ -378,5 +377,5 @@ func (s *PostgresStorageEngine) WriteState(tx evercore.StorageEngineTxInfo, ctx 
 }
 
 func (s *PostgresStorageEngine) Close() error {
-    return s.db.Close()
+	return s.db.Close()
 }

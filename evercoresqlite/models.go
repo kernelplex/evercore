@@ -30,6 +30,19 @@ type Event struct {
 	Reference   string
 }
 
+type EventLog struct {
+	ID              int64
+	AggregateID     int64
+	NaturalKey      sql.NullString
+	Sequence        int64
+	AggregateTypeID int64
+	AggregateType   string
+	EventTypeID     int64
+	EventType       string
+	EventTime       time.Time
+	State           string
+}
+
 type EventType struct {
 	ID   int64
 	Name string
@@ -40,4 +53,26 @@ type Snapshot struct {
 	AggregateID int64
 	Sequence    int64
 	State       string
+}
+
+type Subscription struct {
+	ID              int64
+	Name            string
+	AggregateTypeID sql.NullInt64
+	EventTypeID     sql.NullInt64
+	AggregateKey    sql.NullString
+	StartFrom       string
+	StartEventID    int64
+	StartTimestamp  sql.NullTime
+	LastEventID     int64
+	Active          bool
+	LeaseOwner      sql.NullString
+	LeaseExpiresAt  sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type SubscriptionEventType struct {
+	SubscriptionID int64
+	EventTypeID    int64
 }

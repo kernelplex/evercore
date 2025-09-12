@@ -1,14 +1,13 @@
 package evercoresqlite
 
 import (
-    "context"
-    "database/sql"
-    "errors"
-    "fmt"
-    "strings"
-    "time"
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
 
-	"github.com/kernelplex/evercore/base"
+	evercore "github.com/kernelplex/evercore/base"
 )
 
 const maxKeyLength = 64
@@ -376,5 +375,5 @@ func (s *SqliteStorageEngine) WriteState(tx evercore.StorageEngineTxInfo, ctx co
 }
 
 func (s *SqliteStorageEngine) Close() error {
-    return s.db.Close()
+	return s.db.Close()
 }

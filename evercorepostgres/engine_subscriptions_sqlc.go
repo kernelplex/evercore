@@ -5,6 +5,8 @@ package evercorepostgres
 import (
     "context"
     "database/sql"
+    "errors"
+    "fmt"
     "time"
 
     evercore "github.com/kernelplex/evercore/base"
@@ -73,30 +75,31 @@ func (s *PostgresStorageEngine) ReleaseSubscription(tx evercore.StorageEngineTxI
 
 func (s *PostgresStorageEngine) GetEventsForSubscription(tx evercore.StorageEngineTxInfo, ctx context.Context, sub *evercore.Subscription, limit int) ([]evercore.SerializedEvent, error) {
     db := s.maybeWrapTx(tx)
-    q := New(db)
-    useMulti := false
-    if sub.EventTypeID == nil { useMulti = true }
-    rows, err := q.GetEventsForSubscription(ctx, GetEventsForSubscriptionParams{
-        AfterID:         sub.LastEventID,
-        AggregateTypeID: nullInt64(sub.AggregateTypeID),
-        AggregateKey:    nullString(sub.AggregateKey),
-        UseMulti:        useMulti,
-        SubscriptionID:  sub.ID,
-        EventTypeID:     nullInt64(sub.EventTypeID),
-        Limit:           int32(limit),
-    })
-    if err != nil { return nil, WrapError("failed to query events for subscription", err) }
-    out := make([]evercore.SerializedEvent, 0, len(rows))
-    for _, r := range rows {
-        out = append(out, evercore.SerializedEvent{
-            EventID:     r.ID,
-            AggregateId: r.AggregateID,
-            EventType:   r.EventType,
-            State:       r.State,
-            Sequence:    r.Sequence,
-            Reference:   "",
-            EventTime:   r.EventTime,
-        })
+    // Fallback to raw SQL for this query due to sqlc LIMIT parameter parsing constraints.
+    multi := sub.EventTypeID == nil
+
+    q := `SELECT id, aggregate_id, natural_key, sequence, aggregate_type_id, aggregate_type, event_type_id, event_type, event_time, state
+          FROM event_log WHERE id > $1`
+    args := []any{sub.LastEventID}
+    idx := 2
+    if sub.AggregateTypeID != nil { q += fmt.Sprintf(" AND aggregate_type_id = $%d", idx); args = append(args, *sub.AggregateTypeID); idx++ }
+    if sub.AggregateKey != nil { q += fmt.Sprintf(" AND natural_key = $%d", idx); args = append(args, *sub.AggregateKey); idx++ }
+    if multi { q += fmt.Sprintf(" AND event_type_id IN (SELECT event_type_id FROM subscription_event_types WHERE subscription_id = $%d)", idx); args = append(args, sub.ID); idx++ } else if sub.EventTypeID != nil { q += fmt.Sprintf(" AND event_type_id = $%d", idx); args = append(args, *sub.EventTypeID); idx++ }
+    q += fmt.Sprintf(" ORDER BY id ASC LIMIT $%d", idx); args = append(args, limit)
+
+    rows, err := db.QueryContext(ctx, q, args...)
+    if err != nil { if errors.Is(err, sql.ErrNoRows) { return []evercore.SerializedEvent{}, nil }; return nil, WrapError("failed to query events for subscription", err) }
+    defer rows.Close()
+    out := make([]evercore.SerializedEvent, 0, limit)
+    for rows.Next() {
+        var id, aggregateID, sequence int64
+        var naturalKey sql.NullString
+        var aggTypeId, evtTypeId int64
+        var aggTypeName, evtTypeName string
+        var eventTime time.Time
+        var state string
+        if err := rows.Scan(&id, &aggregateID, &naturalKey, &sequence, &aggTypeId, &aggTypeName, &evtTypeId, &evtTypeName, &eventTime, &state); err != nil { return nil, WrapError("failed to scan events for subscription", err) }
+        out = append(out, evercore.SerializedEvent{ EventID: id, AggregateId: aggregateID, EventType: evtTypeName, State: state, Sequence: sequence, Reference: "", EventTime: eventTime })
     }
     return out, nil
 }
@@ -140,4 +143,3 @@ func toBaseSubscription(row GetSubscriptionByNameRow) evercore.Subscription {
     if row.LeaseExpiresAt.Valid { v := row.LeaseExpiresAt.Time; sub.LeaseExpiresAt = &v }
     return sub
 }
-
