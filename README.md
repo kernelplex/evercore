@@ -205,17 +205,33 @@ make integration-test-postgres  # PostgreSQL only
 
 ## Subscriptions
 
-Evercore includes durable subscriptions that stream events in global order and survive restarts.
+Evercore includes two subscription modes for streaming events in global order:
 
-- Stored in DB with a durable cursor (`last_event_id`).
+- Durable (tracked in DB): survives restarts and stores a cursor (`last_event_id`).
+- Ephemeral (in-process only): no DB row, dies with the service; great for cache invalidation.
+
+Common features
 - Filters: aggregate type, event type(s), and optional aggregate key.
 - Start positions: `beginning`, `end`, `event_id`, `timestamp`.
-- Leasing: cooperative leases (`lease_owner`, `lease_expires_at`) enable distributed runners.
 - Delivery: at-least-once; keep handlers idempotent.
 
-API: `EventStore.RunSubscription(ctx, name, filter, start, opts, handler)`
+Durable API: `EventStore.RunSubscription(ctx, name, filter, start, opts, handler)`
+- Claiming may fail if another worker holds the lease. Detect with `errors.Is(err, evercore.ErrSubscriptionAlreadyOwned)` and retry (e.g., at half the lease time).
 
-Example: `examples/subscription_example/main.go` shows an in-memory runner for shipped orders.
+Ephemeral API: `EventStore.RunEphemeralSubscription(ctx, filter, start, opts, handler)`
+- No lease, no DB writes; position is tracked in memory only.
+
+Examples
+- Postgres durable: `examples/subscription_postgres_example/main.go`
+  - Env: `PG_TEST_RUNNER_CONNECTION=postgres://user:pass@host:5432/db?sslmode=disable`
+  - Run: `go run examples/subscription_postgres_example/main.go`
+- SQLite durable: `examples/subscription_sqlite_example/main.go`
+  - Env (optional): `SQLITE_TEST_RUNNER_CONNECTION=sqlite:///path/to/db.sqlite?cache=shared`
+  - Defaults to in-memory if not set
+  - Run: `go run examples/subscription_sqlite_example/main.go`
+- Ephemeral cache invalidation: `examples/ephemeral_subscription_example/main.go`
+  - Env (optional): `EVERCORE_DSN=postgres://...` or `sqlite:///...`; defaults to in-memory SQLite
+  - Run: `go run examples/ephemeral_subscription_example/main.go`
 
 ## Development
 
