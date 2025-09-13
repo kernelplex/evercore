@@ -98,13 +98,15 @@ func main() {
     // Simulate updates that the ephemeral sub will react to
     time.Sleep(150 * time.Millisecond)
     _ = store.WithContext(context.Background(), func(etx evercore.EventStoreContext) error {
-        // Update first
+        // Update first (we know sequence=1 after the initial create)
         agg1 := CacheItemAggregate{}
-        if err := etx.LoadStateInto(&agg1, ids[0]); err != nil { return err }
+        agg1.SetId(ids[0])
+        agg1.SetSequence(1)
         if err := etx.ApplyEventTo(&agg1, evercore.NewStateEvent(CacheItemUpdated{Value: "V-1-upd"}), time.Now().UTC(), ""); err != nil { return err }
         // Delete second
         agg2 := CacheItemAggregate{}
-        if err := etx.LoadStateInto(&agg2, ids[1]); err != nil { return err }
+        agg2.SetId(ids[1])
+        agg2.SetSequence(1)
         if err := etx.ApplyEventTo(&agg2, evercore.NewStateEvent(CacheItemDeleted{}), time.Now().UTC(), ""); err != nil { return err }
         return nil
     })
