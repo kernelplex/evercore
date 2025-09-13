@@ -41,3 +41,25 @@ type Snapshot struct {
 	Sequence    int64
 	State       string
 }
+
+type Subscription struct {
+	ID              int64
+	Name            string
+	AggregateTypeID sql.NullInt64
+	EventTypeID     sql.NullInt64
+	AggregateKey    sql.NullString
+	StartFrom       string
+	StartEventID    int64
+	StartTimestamp  sql.NullTime
+	LastEventID     int64
+	Active          bool
+	LeaseOwner      sql.NullString
+	LeaseExpiresAt  sql.NullTime
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type SubscriptionEventType struct {
+	SubscriptionID int64
+	EventTypeID    int64
+}

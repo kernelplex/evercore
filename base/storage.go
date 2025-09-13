@@ -1,8 +1,9 @@
 package evercore
 
 import (
-	"context"
-	"fmt"
+    "context"
+    "fmt"
+    "time"
 )
 
 var ErrorKeyExceedsMaximumLength error = fmt.Errorf("The specified key exceeds the maximum key length")
@@ -64,6 +65,29 @@ type StorageEngine interface {
 	// Gets a transaction state to track multiple
 	GetTransactionInfo() (StorageEngineTxInfo, error)
 
-	// Closes the storage engine.
-	Close() error
+    // Closes the storage engine.
+    Close() error
+
+    // -------- Durable Subscriptions --------
+    // Create or update a subscription by name. If updating, last_event_id is not modified.
+    UpsertSubscription(tx StorageEngineTxInfo, ctx context.Context, name string, aggregateTypeId *int64, eventTypeId *int64, aggregateKey *string, startFrom string, startEventId int64, startTimestamp *time.Time) (int64, error)
+    // Optionally associate multiple event types to a subscription (enables multi-type filtering).
+    AddSubscriptionEventType(tx StorageEngineTxInfo, ctx context.Context, subscriptionId int64, eventTypeId int64) error
+    // Fetch a subscription by name.
+    GetSubscriptionByName(tx StorageEngineTxInfo, ctx context.Context, name string) (*Subscription, error)
+    // Activate/deactivate a subscription.
+    SetSubscriptionActive(tx StorageEngineTxInfo, ctx context.Context, id int64, active bool) error
+
+    // Cooperative lease management for distributed runners.
+    ClaimSubscription(tx StorageEngineTxInfo, ctx context.Context, name string, owner string, lease time.Duration) (bool, error)
+    RenewSubscription(tx StorageEngineTxInfo, ctx context.Context, name string, owner string, lease time.Duration) (bool, error)
+    ReleaseSubscription(tx StorageEngineTxInfo, ctx context.Context, name string, owner string) error
+
+    // Event streaming for a subscription and cursor advancement.
+    GetEventsForSubscription(tx StorageEngineTxInfo, ctx context.Context, sub *Subscription, limit int) ([]SerializedEvent, error)
+    AdvanceSubscriptionCursor(tx StorageEngineTxInfo, ctx context.Context, id int64, lastEventId int64) error
+
+    // Helpers for initializing cursors.
+    GetMaxEventId(tx StorageEngineTxInfo, ctx context.Context) (int64, error)
+    GetFirstEventIdFromTimestamp(tx StorageEngineTxInfo, ctx context.Context, ts time.Time) (int64, error)
 }

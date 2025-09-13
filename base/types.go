@@ -19,12 +19,32 @@ type IdNameMap map[int64]string
 
 // Represents an event to be published with the state serialized.
 type SerializedEvent struct {
-	AggregateId int64
-	EventType   string
-	State       string
-	Sequence    int64
-	Reference   string
-	EventTime   time.Time
+    // EventID is the global, monotonically increasing id from the events table.
+    // It may be zero when events are loaded by-aggregate (not via event_log).
+    EventID    int64
+    AggregateId int64
+    EventType   string
+    State       string
+    Sequence    int64
+    Reference   string
+    EventTime   time.Time
+}
+
+// Subscription describes a durable reader over the event log with optional filters
+// and a durable cursor stored as last_event_id.
+type Subscription struct {
+    ID               int64
+    Name             string
+    AggregateTypeID  *int64
+    EventTypeID      *int64
+    AggregateKey     *string
+    StartFrom        string
+    StartEventID     int64
+    StartTimestamp   *time.Time
+    LastEventID      int64
+    Active           bool
+    LeaseOwner       *string
+    LeaseExpiresAt   *time.Time
 }
 
 // Decodes the event state into the specified type.

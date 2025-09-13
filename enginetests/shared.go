@@ -1,14 +1,14 @@
 package evercoreenginetests
 
 import (
-	"context"
-	"errors"
-	"reflect"
-	"strings"
-	"testing"
-	"time"
+    "context"
+    "errors"
+    "reflect"
+    "strings"
+    "testing"
+    "time"
 
-	"github.com/kernelplex/evercore/base"
+    "github.com/kernelplex/evercore/base"
 )
 
 type StorageEngineTestSuite struct {
@@ -71,6 +71,15 @@ func (s *StorageEngineTestSuite) RunTests(t *testing.T) {
 	t.Run("Reading events after last sequence", s.getEventsAfterLastSequence)
 	t.Run("Changing aggregate natural key", s.testChangeAggregateNaturalKey)
 	t.Run("Changing aggregate natural key with new key being too long", s.testChangeAggregateNaturalKey_WithNewKeyBeingTooLong)
+
+	// Durable subscription queries
+	t.Run("Upsert and get subscription", s.testUpsertAndGetSubscription)
+	t.Run("Subscription lease lifecycle", s.testSubscriptionLeaseLifecycle)
+	t.Run("Subscription single-type filtering", s.testGetEventsForSubscription_SingleEventType)
+	t.Run("Advance subscription cursor", s.testAdvanceSubscriptionCursor)
+	t.Run("Subscription multi-type filtering", s.testGetEventsForSubscription_MultiEventTypes)
+	t.Run("Subscription aggregate key filtering", s.testGetEventsForSubscription_AggregateKey)
+	t.Run("Max and first event id helpers", s.testGetMaxAndFirstEventId)
 
 }
 
@@ -760,4 +769,362 @@ func (s *StorageEngineTestSuite) testChangeAggregateNaturalKey_WithNewKeyBeingTo
 	if !errors.Is(err, evercore.ErrorKeyExceedsMaximumLength) {
 		t.Errorf("Expected ErrorKeyExceedsMaximumLength, got: %v", err)
 	}
+}
+
+// ============================================================================
+// Durable Subscription Query Tests
+// ============================================================================
+
+// Helper to write events for the keyed aggregate without affecting earlier expectations
+func (s *StorageEngineTestSuite) writeStateForKeyedAggregate(t *testing.T) {
+    ctx := context.Background()
+
+    tx, err := s.iut.GetTransactionInfo()
+    if err != nil {
+        t.Errorf("Failed to create transaction: %v", err)
+        return
+    }
+    defer tx.Rollback()
+
+    events := []evercore.StorageEngineEvent{
+        {
+            AggregateID: s.aggregateWithKey,
+            Sequence:    1,
+            EventTypeID: userCreatedEventId,
+            State:       "{action: \"created\"}",
+            EventTime:   time.Now().UTC(),
+            Reference:   "test_suite_keyed",
+        },
+        {
+            AggregateID: s.aggregateWithKey,
+            Sequence:    2,
+            EventTypeID: userUpdatedEventId,
+            State:       "{action: \"updated\"}",
+            EventTime:   time.Now().UTC(),
+            Reference:   "test_suite_keyed",
+        },
+    }
+
+    if err := s.iut.WriteState(tx, ctx, events, nil); err != nil {
+        t.Errorf("Write state for keyed aggregate failed: %v", err)
+        return
+    }
+
+    if err := tx.Commit(); err != nil {
+        t.Errorf("Failed to commit transaction: %v", err)
+    }
+}
+
+func (s *StorageEngineTestSuite) testUpsertAndGetSubscription(t *testing.T) {
+    ctx := context.Background()
+
+    name := "enginetest_sub_single"
+    subID, err := s.iut.UpsertSubscription(nil, ctx, name, &userAggregateTypeId, &userCreatedEventId, nil, evercore.StartBeginning, 0, nil)
+    if err != nil {
+        t.Errorf("UpsertSubscription failed: %v", err)
+        return
+    }
+
+    sub, err := s.iut.GetSubscriptionByName(nil, ctx, name)
+    if err != nil {
+        t.Errorf("GetSubscriptionByName failed: %v", err)
+        return
+    }
+    if sub == nil {
+        t.Errorf("Expected subscription, got nil")
+        return
+    }
+    if sub.ID != subID {
+        t.Errorf("Subscription id mismatch: expected %d got %d", subID, sub.ID)
+    }
+    if sub.Name != name {
+        t.Errorf("Subscription name mismatch: expected %s got %s", name, sub.Name)
+    }
+    if sub.AggregateTypeID == nil || *sub.AggregateTypeID != userAggregateTypeId {
+        t.Errorf("AggregateTypeID mismatch or nil")
+    }
+    if sub.EventTypeID == nil || *sub.EventTypeID != userCreatedEventId {
+        t.Errorf("EventTypeID mismatch or nil")
+    }
+    if !sub.Active {
+        t.Errorf("Expected subscription to be active")
+    }
+    if sub.StartFrom != evercore.StartBeginning {
+        t.Errorf("StartFrom mismatch: expected %s got %s", evercore.StartBeginning, sub.StartFrom)
+    }
+}
+
+func (s *StorageEngineTestSuite) testSubscriptionLeaseLifecycle(t *testing.T) {
+    ctx := context.Background()
+    name := "enginetest_sub_lease"
+
+    // Create a simple subscription with no filters
+    if _, err := s.iut.UpsertSubscription(nil, ctx, name, nil, nil, nil, evercore.StartBeginning, 0, nil); err != nil {
+        t.Errorf("UpsertSubscription failed: %v", err)
+        return
+    }
+
+    owner1 := "owner1"
+    owner2 := "owner2"
+
+    claimed, err := s.iut.ClaimSubscription(nil, ctx, name, owner1, 2*time.Second)
+    if err != nil {
+        t.Errorf("ClaimSubscription failed: %v", err)
+        return
+    }
+    if !claimed {
+        t.Errorf("Expected claim to succeed for owner1")
+    }
+
+    // Another owner should not be able to claim
+    claimed, err = s.iut.ClaimSubscription(nil, ctx, name, owner2, 2*time.Second)
+    if err != nil {
+        t.Errorf("ClaimSubscription (owner2) failed: %v", err)
+        return
+    }
+    if claimed {
+        t.Errorf("Expected claim to fail for owner2 while leased")
+    }
+
+    // Renew with wrong owner should return false
+    renewed, err := s.iut.RenewSubscription(nil, ctx, name, owner2, 2*time.Second)
+    if err != nil {
+        t.Errorf("RenewSubscription (owner2) error: %v", err)
+        return
+    }
+    if renewed {
+        t.Errorf("Expected renew to fail for non-owner")
+    }
+
+    // Renew with correct owner should succeed
+    renewed, err = s.iut.RenewSubscription(nil, ctx, name, owner1, 2*time.Second)
+    if err != nil {
+        t.Errorf("RenewSubscription (owner1) error: %v", err)
+        return
+    }
+    if !renewed {
+        t.Errorf("Expected renew to succeed for owner1")
+    }
+
+    // Release and ensure another claim works
+    if err := s.iut.ReleaseSubscription(nil, ctx, name, owner1); err != nil {
+        t.Errorf("ReleaseSubscription error: %v", err)
+        return
+    }
+    claimed, err = s.iut.ClaimSubscription(nil, ctx, name, owner2, 2*time.Second)
+    if err != nil {
+        t.Errorf("ClaimSubscription (owner2 after release) failed: %v", err)
+        return
+    }
+    if !claimed {
+        t.Errorf("Expected owner2 to claim after release")
+    }
+    _ = s.iut.ReleaseSubscription(nil, ctx, name, owner2)
+}
+
+func (s *StorageEngineTestSuite) testGetEventsForSubscription_SingleEventType(t *testing.T) {
+    ctx := context.Background()
+
+    name := "enginetest_sub_single"
+    sub, err := s.iut.GetSubscriptionByName(nil, ctx, name)
+    if err != nil {
+        t.Errorf("GetSubscriptionByName failed: %v", err)
+        return
+    }
+
+    events, err := s.iut.GetEventsForSubscription(nil, ctx, sub, 100)
+    if err != nil {
+        t.Errorf("GetEventsForSubscription failed: %v", err)
+        return
+    }
+
+    // We expect only the userCreatedEvent for the aggregate without key
+    expectedType := s.eventTypeMapInv[userCreatedEventId]
+    foundOther := false
+    for _, e := range events {
+        if e.EventType != expectedType {
+            foundOther = true
+            break
+        }
+    }
+    if foundOther {
+        t.Errorf("Expected only events of type %s, got mixed types: %+v", expectedType, events)
+    }
+    if len(events) == 0 {
+        t.Errorf("Expected at least one event for single-type subscription")
+    }
+}
+
+func (s *StorageEngineTestSuite) testAdvanceSubscriptionCursor(t *testing.T) {
+    ctx := context.Background()
+    name := "enginetest_sub_single"
+    sub, err := s.iut.GetSubscriptionByName(nil, ctx, name)
+    if err != nil {
+        t.Errorf("GetSubscriptionByName failed: %v", err)
+        return
+    }
+
+    events, err := s.iut.GetEventsForSubscription(nil, ctx, sub, 100)
+    if err != nil {
+        t.Errorf("GetEventsForSubscription failed: %v", err)
+        return
+    }
+    if len(events) == 0 {
+        t.Skip("No events to advance cursor with; previous step likely failed")
+        return
+    }
+
+    last := events[len(events)-1].EventID
+    if err := s.iut.AdvanceSubscriptionCursor(nil, ctx, sub.ID, last); err != nil {
+        t.Errorf("AdvanceSubscriptionCursor failed: %v", err)
+        return
+    }
+
+    // After advancing, no further events for that type should be returned immediately
+    sub, _ = s.iut.GetSubscriptionByName(nil, ctx, name)
+    next, err := s.iut.GetEventsForSubscription(nil, ctx, sub, 100)
+    if err != nil {
+        t.Errorf("GetEventsForSubscription after advance failed: %v", err)
+        return
+    }
+    if len(next) != 0 {
+        t.Errorf("Expected zero events after advancing cursor, got %d", len(next))
+    }
+}
+
+func (s *StorageEngineTestSuite) testGetEventsForSubscription_MultiEventTypes(t *testing.T) {
+    ctx := context.Background()
+    name := "enginetest_sub_multi"
+
+    // Create multi-type subscription (use join table)
+    subID, err := s.iut.UpsertSubscription(nil, ctx, name, &userAggregateTypeId, nil, nil, evercore.StartBeginning, 0, nil)
+    if err != nil {
+        t.Errorf("UpsertSubscription failed: %v", err)
+        return
+    }
+    if err := s.iut.AddSubscriptionEventType(nil, ctx, subID, userCreatedEventId); err != nil {
+        t.Errorf("AddSubscriptionEventType (created) failed: %v", err)
+        return
+    }
+    if err := s.iut.AddSubscriptionEventType(nil, ctx, subID, userUpdatedEventId); err != nil {
+        t.Errorf("AddSubscriptionEventType (updated) failed: %v", err)
+        return
+    }
+
+    sub, err := s.iut.GetSubscriptionByName(nil, ctx, name)
+    if err != nil {
+        t.Errorf("GetSubscriptionByName failed: %v", err)
+        return
+    }
+
+    events, err := s.iut.GetEventsForSubscription(nil, ctx, sub, 100)
+    if err != nil {
+        t.Errorf("GetEventsForSubscription failed: %v", err)
+        return
+    }
+
+    // Expect both types to appear
+    want := map[string]bool{
+        s.eventTypeMapInv[userCreatedEventId]: true,
+        s.eventTypeMapInv[userUpdatedEventId]: true,
+    }
+    got := map[string]bool{}
+    for _, e := range events {
+        got[e.EventType] = true
+    }
+    for k := range want {
+        if !got[k] {
+            t.Errorf("Expected event type %s in multi-type results; got %+v", k, events)
+        }
+    }
+}
+
+func (s *StorageEngineTestSuite) testGetEventsForSubscription_AggregateKey(t *testing.T) {
+    // Ensure events exist for keyed aggregate
+    s.writeStateForKeyedAggregate(t)
+
+    ctx := context.Background()
+    name := "enginetest_sub_key"
+    key := "chavez"
+
+    // Filter by aggregate key only
+    if _, err := s.iut.UpsertSubscription(nil, ctx, name, nil, nil, &key, evercore.StartBeginning, 0, nil); err != nil {
+        t.Errorf("UpsertSubscription failed: %v", err)
+        return
+    }
+    sub, err := s.iut.GetSubscriptionByName(nil, ctx, name)
+    if err != nil {
+        t.Errorf("GetSubscriptionByName failed: %v", err)
+        return
+    }
+
+    events, err := s.iut.GetEventsForSubscription(nil, ctx, sub, 100)
+    if err != nil {
+        t.Errorf("GetEventsForSubscription failed: %v", err)
+        return
+    }
+    if len(events) < 2 {
+        t.Errorf("Expected at least two events for keyed aggregate, got %d", len(events))
+    }
+    for _, e := range events {
+        if e.AggregateId != s.aggregateWithKey {
+            t.Errorf("Expected only events for aggregate %d, got %+v", s.aggregateWithKey, e)
+        }
+    }
+}
+
+func (s *StorageEngineTestSuite) testGetMaxAndFirstEventId(t *testing.T) {
+    ctx := context.Background()
+    name := "enginetest_sub_all"
+
+    if _, err := s.iut.UpsertSubscription(nil, ctx, name, nil, nil, nil, evercore.StartBeginning, 0, nil); err != nil {
+        t.Errorf("UpsertSubscription failed: %v", err)
+        return
+    }
+    sub, err := s.iut.GetSubscriptionByName(nil, ctx, name)
+    if err != nil {
+        t.Errorf("GetSubscriptionByName failed: %v", err)
+        return
+    }
+
+    events, err := s.iut.GetEventsForSubscription(nil, ctx, sub, 100)
+    if err != nil {
+        t.Errorf("GetEventsForSubscription failed: %v", err)
+        return
+    }
+    if len(events) == 0 {
+        t.Errorf("Expected events for max/first id checks")
+        return
+    }
+
+    maxID := int64(0)
+    firstTime := events[0].EventTime
+    firstIDAtTime := events[0].EventID
+    for _, e := range events {
+        if e.EventID > maxID {
+            maxID = e.EventID
+        }
+        if e.EventTime.Before(firstTime) || e.EventTime.Equal(firstTime) && e.EventID < firstIDAtTime {
+            firstTime = e.EventTime
+            firstIDAtTime = e.EventID
+        }
+    }
+
+    gotMax, err := s.iut.GetMaxEventId(nil, ctx)
+    if err != nil {
+        t.Errorf("GetMaxEventId failed: %v", err)
+        return
+    }
+    if gotMax != maxID {
+        t.Errorf("GetMaxEventId mismatch: expected %d got %d", maxID, gotMax)
+    }
+
+    gotFirst, err := s.iut.GetFirstEventIdFromTimestamp(nil, ctx, firstTime)
+    if err != nil {
+        t.Errorf("GetFirstEventIdFromTimestamp failed: %v", err)
+        return
+    }
+    if gotFirst != firstIDAtTime {
+        t.Errorf("GetFirstEventIdFromTimestamp mismatch: expected %d got %d", firstIDAtTime, gotFirst)
+    }
 }

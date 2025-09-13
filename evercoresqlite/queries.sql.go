@@ -120,6 +120,35 @@ func (q *Queries) AddSnapshot(ctx context.Context, arg AddSnapshotParams) error 
 	return err
 }
 
+const addSubscriptionEventType = `-- name: AddSubscriptionEventType :exec
+INSERT OR IGNORE INTO subscription_event_types (subscription_id, event_type_id)
+VALUES (?1, ?2)
+`
+
+type AddSubscriptionEventTypeParams struct {
+	SubscriptionID int64
+	EventTypeID    int64
+}
+
+func (q *Queries) AddSubscriptionEventType(ctx context.Context, arg AddSubscriptionEventTypeParams) error {
+	_, err := q.db.ExecContext(ctx, addSubscriptionEventType, arg.SubscriptionID, arg.EventTypeID)
+	return err
+}
+
+const advanceSubscriptionCursor = `-- name: AdvanceSubscriptionCursor :exec
+UPDATE subscriptions SET last_event_id = ?1, updated_at=CURRENT_TIMESTAMP WHERE id = ?2
+`
+
+type AdvanceSubscriptionCursorParams struct {
+	LastEventID int64
+	ID          int64
+}
+
+func (q *Queries) AdvanceSubscriptionCursor(ctx context.Context, arg AdvanceSubscriptionCursorParams) error {
+	_, err := q.db.ExecContext(ctx, advanceSubscriptionCursor, arg.LastEventID, arg.ID)
+	return err
+}
+
 const changeAggregateNaturalKey = `-- name: ChangeAggregateNaturalKey :exec
 UPDATE aggregates SET natural_key=?1 WHERE id=?2
 `
@@ -132,6 +161,32 @@ type ChangeAggregateNaturalKeyParams struct {
 func (q *Queries) ChangeAggregateNaturalKey(ctx context.Context, arg ChangeAggregateNaturalKeyParams) error {
 	_, err := q.db.ExecContext(ctx, changeAggregateNaturalKey, arg.NaturalKey, arg.AggregateID)
 	return err
+}
+
+const claimSubscription = `-- name: ClaimSubscription :execrows
+UPDATE subscriptions
+SET lease_owner = ?1, lease_expires_at = ?2, updated_at=CURRENT_TIMESTAMP
+WHERE name = ?3 AND active = 1 AND (lease_owner IS NULL OR lease_expires_at < ?4)
+`
+
+type ClaimSubscriptionParams struct {
+	Owner          sql.NullString
+	LeaseExpiresAt sql.NullTime
+	Name           string
+	Now            sql.NullTime
+}
+
+func (q *Queries) ClaimSubscription(ctx context.Context, arg ClaimSubscriptionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, claimSubscription,
+		arg.Owner,
+		arg.LeaseExpiresAt,
+		arg.Name,
+		arg.Now,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getAggregateById = `-- name: GetAggregateById :one
@@ -297,6 +352,95 @@ func (q *Queries) GetEventsForAggregate(ctx context.Context, arg GetEventsForAgg
 	return items, nil
 }
 
+const getEventsForSubscription = `-- name: GetEventsForSubscription :many
+SELECT id, aggregate_id, natural_key, sequence, aggregate_type_id, aggregate_type, event_type_id, event_type, event_time, state
+FROM event_log
+WHERE id > ?1
+  AND (?2 IS NULL OR aggregate_type_id = ?2)
+  AND (?3 IS NULL OR natural_key = ?3)
+  AND (
+    (?4 = 1 AND event_type_id IN (SELECT event_type_id FROM subscription_event_types WHERE subscription_id = ?5))
+    OR
+    (?4 = 0 AND (?6 IS NULL OR event_type_id = ?6))
+  )
+ORDER BY id ASC
+LIMIT ?7
+`
+
+type GetEventsForSubscriptionParams struct {
+	AfterID         int64
+	AggregateTypeID interface{}
+	AggregateKey    interface{}
+	UseMulti        interface{}
+	SubscriptionID  int64
+	EventTypeID     interface{}
+	Limit           int64
+}
+
+func (q *Queries) GetEventsForSubscription(ctx context.Context, arg GetEventsForSubscriptionParams) ([]EventLog, error) {
+	rows, err := q.db.QueryContext(ctx, getEventsForSubscription,
+		arg.AfterID,
+		arg.AggregateTypeID,
+		arg.AggregateKey,
+		arg.UseMulti,
+		arg.SubscriptionID,
+		arg.EventTypeID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EventLog
+	for rows.Next() {
+		var i EventLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.AggregateID,
+			&i.NaturalKey,
+			&i.Sequence,
+			&i.AggregateTypeID,
+			&i.AggregateType,
+			&i.EventTypeID,
+			&i.EventType,
+			&i.EventTime,
+			&i.State,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getFirstEventIdFromTimestamp = `-- name: GetFirstEventIdFromTimestamp :one
+SELECT id FROM events WHERE event_time >= ?1 ORDER BY id ASC LIMIT 1
+`
+
+func (q *Queries) GetFirstEventIdFromTimestamp(ctx context.Context, ts time.Time) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getFirstEventIdFromTimestamp, ts)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const getMaxEventId = `-- name: GetMaxEventId :one
+SELECT COALESCE(MAX(id), 0) AS id FROM events
+`
+
+func (q *Queries) GetMaxEventId(ctx context.Context) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getMaxEventId)
+	var id interface{}
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getMostRecentSnapshot = `-- name: GetMostRecentSnapshot :one
 SELECT aggregate_id, sequence, state
 FROM snapshots
@@ -316,4 +460,141 @@ func (q *Queries) GetMostRecentSnapshot(ctx context.Context, aggregateID int64) 
 	var i GetMostRecentSnapshotRow
 	err := row.Scan(&i.AggregateID, &i.Sequence, &i.State)
 	return i, err
+}
+
+const getSubscriptionByName = `-- name: GetSubscriptionByName :one
+SELECT id, name, aggregate_type_id, event_type_id, aggregate_key,
+       start_from, start_event_id, start_timestamp,
+       last_event_id, active, lease_owner, lease_expires_at
+FROM subscriptions WHERE name = ?1
+`
+
+type GetSubscriptionByNameRow struct {
+	ID              int64
+	Name            string
+	AggregateTypeID sql.NullInt64
+	EventTypeID     sql.NullInt64
+	AggregateKey    sql.NullString
+	StartFrom       string
+	StartEventID    int64
+	StartTimestamp  sql.NullTime
+	LastEventID     int64
+	Active          bool
+	LeaseOwner      sql.NullString
+	LeaseExpiresAt  sql.NullTime
+}
+
+func (q *Queries) GetSubscriptionByName(ctx context.Context, name string) (GetSubscriptionByNameRow, error) {
+	row := q.db.QueryRowContext(ctx, getSubscriptionByName, name)
+	var i GetSubscriptionByNameRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.AggregateTypeID,
+		&i.EventTypeID,
+		&i.AggregateKey,
+		&i.StartFrom,
+		&i.StartEventID,
+		&i.StartTimestamp,
+		&i.LastEventID,
+		&i.Active,
+		&i.LeaseOwner,
+		&i.LeaseExpiresAt,
+	)
+	return i, err
+}
+
+const releaseSubscription = `-- name: ReleaseSubscription :exec
+UPDATE subscriptions SET lease_owner = NULL, lease_expires_at = NULL, updated_at=CURRENT_TIMESTAMP
+WHERE name = ?1 AND lease_owner = ?2
+`
+
+type ReleaseSubscriptionParams struct {
+	Name  string
+	Owner sql.NullString
+}
+
+func (q *Queries) ReleaseSubscription(ctx context.Context, arg ReleaseSubscriptionParams) error {
+	_, err := q.db.ExecContext(ctx, releaseSubscription, arg.Name, arg.Owner)
+	return err
+}
+
+const renewSubscription = `-- name: RenewSubscription :execrows
+UPDATE subscriptions
+SET lease_expires_at = ?1, updated_at=CURRENT_TIMESTAMP
+WHERE name = ?2 AND lease_owner = ?3 AND active = 1
+`
+
+type RenewSubscriptionParams struct {
+	LeaseExpiresAt sql.NullTime
+	Name           string
+	Owner          sql.NullString
+}
+
+func (q *Queries) RenewSubscription(ctx context.Context, arg RenewSubscriptionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, renewSubscription, arg.LeaseExpiresAt, arg.Name, arg.Owner)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setSubscriptionActive = `-- name: SetSubscriptionActive :exec
+UPDATE subscriptions SET active = ?1, updated_at=CURRENT_TIMESTAMP WHERE id = ?2
+`
+
+type SetSubscriptionActiveParams struct {
+	Active bool
+	ID     int64
+}
+
+func (q *Queries) SetSubscriptionActive(ctx context.Context, arg SetSubscriptionActiveParams) error {
+	_, err := q.db.ExecContext(ctx, setSubscriptionActive, arg.Active, arg.ID)
+	return err
+}
+
+const upsertSubscription = `-- name: UpsertSubscription :one
+
+INSERT INTO subscriptions (
+  name, aggregate_type_id, event_type_id, aggregate_key,
+  start_from, start_event_id, start_timestamp
+) VALUES (
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7
+)
+ON CONFLICT(name) DO UPDATE SET
+  aggregate_type_id=excluded.aggregate_type_id,
+  event_type_id=excluded.event_type_id,
+  aggregate_key=excluded.aggregate_key,
+  start_from=excluded.start_from,
+  start_event_id=excluded.start_event_id,
+  start_timestamp=excluded.start_timestamp,
+  updated_at=CURRENT_TIMESTAMP
+RETURNING id
+`
+
+type UpsertSubscriptionParams struct {
+	Name            string
+	AggregateTypeID sql.NullInt64
+	EventTypeID     sql.NullInt64
+	AggregateKey    sql.NullString
+	StartFrom       string
+	StartEventID    int64
+	StartTimestamp  sql.NullTime
+}
+
+// Subscription Queries
+func (q *Queries) UpsertSubscription(ctx context.Context, arg UpsertSubscriptionParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, upsertSubscription,
+		arg.Name,
+		arg.AggregateTypeID,
+		arg.EventTypeID,
+		arg.AggregateKey,
+		arg.StartFrom,
+		arg.StartEventID,
+		arg.StartTimestamp,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }

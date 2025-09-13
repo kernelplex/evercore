@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kernelplex/evercore/base"
+	evercore "github.com/kernelplex/evercore/base"
 )
 
 const maxKeyLength = 64
