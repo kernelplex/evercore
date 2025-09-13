@@ -80,3 +80,43 @@ func TestRunSubscription_MemoryEngine(t *testing.T) {
     }
 }
 
+func TestRunEphemeralSubscription_Beginning_MultiType(t *testing.T) {
+    store := NewEventStore(NewMemoryStorageEngine())
+
+    // Seed: 2 aggregates: created + shipped on each
+    if err := store.WithContext(context.Background(), func(etx EventStoreContext) error {
+        for i := 0; i < 2; i++ {
+            agg := testOrderAgg{}
+            if err := etx.CreateAggregateInto(&agg); err != nil { return err }
+            if err := etx.ApplyEventTo(&agg, NewStateEvent(testOrderCreatedEvent{ID: "X", Status: "Created"}), time.Now().UTC(), ""); err != nil { return err }
+            if err := etx.ApplyEventTo(&agg, NewStateEvent(testOrderShippedEvent{Status: "Shipped"}), time.Now().UTC(), ""); err != nil { return err }
+        }
+        return nil
+    }); err != nil {
+        t.Fatalf("seed failed: %v", err)
+    }
+
+    ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+    defer cancel()
+
+    total := 0
+    err := store.RunEphemeralSubscription(
+        ctx,
+        SubscriptionFilter{AggregateType: "testOrderState", EventTypes: []string{"testOrderCreatedEvent", "testOrderShippedEvent"}},
+        StartFrom{Kind: StartBeginning},
+        Options{BatchSize: 100, PollInterval: 10 * time.Millisecond},
+        func(_ context.Context, events []SerializedEvent) error {
+            total += len(events)
+            cancel()
+            return nil
+        },
+    )
+    if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+        t.Fatalf("ephemeral failed: %v", err)
+    }
+
+    // 2 aggregates x (created + shipped) = 4
+    if total != 4 {
+        t.Fatalf("expected 4 events from beginning, got %d", total)
+    }
+}
