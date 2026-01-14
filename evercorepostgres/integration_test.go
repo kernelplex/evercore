@@ -12,6 +12,7 @@ import (
 	"github.com/kernelplex/evercore/integrationtests"
 	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/log"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -26,10 +27,11 @@ func TestPostgrtesDatastore(t *testing.T) {
 
 	postgresContainer, err := postgres.Run(
 		ctx,
-		"postgres:16-alpine",
+		"postgres:16",
+		testcontainers.WithLogger(log.TestLogger(t)),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).WithStartupTimeout(5*time.Second)),
+				WithOccurrence(2).WithStartupTimeout(20*time.Second)),
 	)
 	if err != nil {
 		t.Fatalf("failed to start postgres container: %s", err)
