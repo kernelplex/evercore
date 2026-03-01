@@ -18,6 +18,7 @@ with strong typing and transaction safety.
   - Type-safe event handling
   - Automatic state validation
 - Transactional operations
+- Global subscriptions (durable and ephemeral) with leasing, filtering, and cursor controls
 - Natural key support
 - Migration support via Goose
 
@@ -205,31 +206,81 @@ make integration-test-postgres  # PostgreSQL only
 
 ## Subscriptions
 
-Evercore includes two subscription modes for streaming events in global order:
+Evercore streams events in global order and supports two complementary modes:
 
-- Durable (tracked in DB): survives restarts and stores a cursor (`last_event_id`).
-- Ephemeral (in-process only): no DB row, dies with the service; great for cache invalidation.
+- **Durable subscriptions**: stored in the database with a persisted cursor (`last_event_id`) and a lease so only one worker processes a subscription at a time. Survives process restarts.
+- **Ephemeral subscriptions**: run entirely in-process with no DB rows or leases. They stop when your service stops, making them ideal for caches or materialized views that can rebuild.
 
-Common features
-- Filters: aggregate type, event type(s), and optional aggregate key.
-- Start positions: `beginning`, `end`, `event_id`, `timestamp`.
-- Delivery: at-least-once; keep handlers idempotent.
+Common building blocks
+- `SubscriptionFilter`: narrow by aggregate type, event types (one or many), and optionally a specific aggregate key.
+- `StartFrom`: control the starting cursor. Built-ins are `StartBeginning`, `StartEnd`, `StartEventID`, and `StartTimestamp`.
+- `Options`: tune batch size, poll interval, lease length (durable only), and owner name.
+- Delivery is at-least-once; keep handlers idempotent and persist side effects before returning.
 
-Durable API: `EventStore.RunSubscription(ctx, name, filter, start, opts, handler)`
-- Claiming may fail if another worker holds the lease. Detect with `errors.Is(err, evercore.ErrSubscriptionAlreadyOwned)` and retry (e.g., at half the lease time).
+### Durable subscriptions
 
-Ephemeral API: `EventStore.RunEphemeralSubscription(ctx, filter, start, opts, handler)`
-- No lease, no DB writes; position is tracked in memory only.
+Use `EventStore.RunSubscription(ctx, name, filter, start, opts, handler)` to create or update the subscription metadata, claim the lease, and stream events:
 
-Examples
-- Postgres durable: `examples/subscription_postgres_example/main.go`
+```go
+ctx := context.Background()
+opts := evercore.Options{
+    BatchSize:    200,
+    PollInterval: 300 * time.Millisecond,
+    Lease:        15 * time.Second,
+}
+filter := evercore.SubscriptionFilter{
+    AggregateType: "PaymentState",
+    EventTypes:    []string{"PaymentSettled"},
+}
+err := store.RunSubscription(
+    ctx,
+    "payments-settled",
+    filter,
+    evercore.StartFrom{Kind: evercore.StartBeginning},
+    opts,
+    func(_ context.Context, events []evercore.SerializedEvent) error {
+        for _, event := range events {
+            // process and persist side effects
+        }
+        return nil
+    },
+)
+if errors.Is(err, evercore.ErrSubscriptionAlreadyOwned) {
+    // Another worker holds the lease. Wait for half the lease duration and retry.
+}
+```
+
+Tips
+- Always wrap the call in a retry loop to handle `evercore.ErrSubscriptionAlreadyOwned`.
+- Renewing leases and advancing the cursor are handled for you; only return `nil` when your work is durable.
+- Toggle `Active` in the `subscriptions` table to pause a runner without code changes.
+
+### Ephemeral subscriptions
+
+Use `EventStore.RunEphemeralSubscription(ctx, filter, start, opts, handler)` when you want the same filtering/query pipeline without persisting subscription metadata. The API is identical except there is no `name`, `Lease`, or DB writes:
+
+```go
+_ = store.RunEphemeralSubscription(
+    ctx,
+    evercore.SubscriptionFilter{EventTypes: []string{"CacheInvalidated"}},
+    evercore.StartFrom{Kind: evercore.StartEnd},
+    evercore.Options{BatchSize: 50, PollInterval: 250 * time.Millisecond},
+    func(_ context.Context, batch []evercore.SerializedEvent) error {
+        invalidate(batch)
+        return nil
+    },
+)
+```
+
+### Examples
+
+- Durable Postgres: `examples/subscription_postgres_example/main.go`
   - Env: `PG_TEST_RUNNER_CONNECTION=postgres://user:pass@host:5432/db?sslmode=disable`
   - Run: `go run examples/subscription_postgres_example/main.go`
-- SQLite durable: `examples/subscription_sqlite_example/main.go`
-  - Env (optional): `SQLITE_TEST_RUNNER_CONNECTION=sqlite:///path/to/db.sqlite?cache=shared`
-  - Defaults to in-memory if not set
+- Durable SQLite: `examples/subscription_sqlite_example/main.go`
+  - Env (optional): `SQLITE_TEST_RUNNER_CONNECTION=sqlite:///path/to/db.sqlite?cache=shared` (defaults to in-memory)
   - Run: `go run examples/subscription_sqlite_example/main.go`
-- Ephemeral cache invalidation: `examples/ephemeral_subscription_example/main.go`
+- Ephemeral: `examples/ephemeral_subscription_example/main.go`
   - Env (optional): `EVERCORE_DSN=postgres://...` or `sqlite:///...`; defaults to in-memory SQLite
   - Run: `go run examples/ephemeral_subscription_example/main.go`
 
